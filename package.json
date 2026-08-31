@@ -1,10 +1,21 @@
 {
-  "name": "paint-erp-root",
+  "name": "paint-hardware-enterprise-erp",
   "version": "1.0.0",
-  "description": "Kenyan Paint Hardware ERP Root Workspace Runner",
+  "description": "Kenyan Paint & Hardware Enterprise ERP with Custom Tinting PINs, POS, Inventory, Cashbook, Suppliers & Credit",
+  "main": "api/index.js",
+  "engines": {
+    "node": ">=22.x"
+  },
   "scripts": {
-    "dev": "node --watch paint-erp/backend/server.js",
     "start": "node paint-erp/backend/server.js",
-    "seed": "node paint-erp/backend/seed/seed.js"
+    "dev": "node --watch paint-erp/backend/server.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.5.6",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "uuid": "^9.0.1"
   }
 }

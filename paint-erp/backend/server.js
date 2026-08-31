@@ -35,6 +35,11 @@ app.use(express.static(path.join(__dirname, '..', 'frontend')));
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Paint ERP backend running on http://localhost:${PORT}`);
-});
+
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  app.listen(PORT, () => {
+    console.log(`Paint ERP backend running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

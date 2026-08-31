@@ -4,7 +4,21 @@ const { DatabaseSync } = require('node:sqlite');
 const crypto = require('crypto');
 const { parse } = require('csv-parse/sync');
 
-const DB_PATH = path.join(__dirname, 'paint_erp.db');
+let DB_PATH = path.join(__dirname, 'paint_erp.db');
+
+// In Vercel serverless environment, /var/task is read-only.
+// Copy DB to /tmp for full read/write support.
+if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  const tmpPath = path.join('/tmp', 'paint_erp.db');
+  try {
+    if (!fs.existsSync(tmpPath) && fs.existsSync(DB_PATH)) {
+      fs.copyFileSync(DB_PATH, tmpPath);
+    }
+  } catch (e) {
+    console.error('Error preparing DB in /tmp:', e);
+  }
+  DB_PATH = fs.existsSync(tmpPath) ? tmpPath : DB_PATH;
+}
 
 const db = new DatabaseSync(DB_PATH);
 db.exec('PRAGMA journal_mode = WAL;');
