@@ -33,6 +33,7 @@ app.use('/api/suppliers', suppliersRoutes);
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, '..', 'frontend', 'icons', 'favicon.svg')));
 
 const PORT = process.env.PORT || 4000;
 
