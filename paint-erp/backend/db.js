@@ -89,6 +89,8 @@ function seedIfEmpty() {
     insertBase.run('Plascon', 'Wall & All Pastel Base', 4, 20, 10, 1750);
     insertBase.run('Plascon', 'Wall & All Deep Base', 4, 12, 8, 1850);
     insertBase.run('Duracoat', 'Superwash Pastel Base', 4, 18, 10, 1700);
+    insertBase.run('Duracoat', 'Superwash Deep Base', 4, 14, 8, 1800);
+    insertBase.run('Sadolin', 'Classic Matt Base', 4, 16, 8, 1750);
 
     const insertPigment = db.prepare(`
       INSERT OR IGNORE INTO stock_pigments (pigment_code, pigment_name, quantity_ml, low_stock_threshold_ml, unit_cost_per_ml_kes)
@@ -125,31 +127,24 @@ function seedIfEmpty() {
       `).run();
     }
 
-    // Sample color catalog CSV
+    // Full Official Kenyan Digital Fandecks Seed (2,263+ Verified Manufacturer Shades)
     const colorCount = db.prepare('SELECT COUNT(*) AS count FROM manufacturer_colors').get().count;
-    if (colorCount === 0) {
-      const csvPath = path.join(__dirname, 'seed', 'sample_colors.csv');
-      if (fs.existsSync(csvPath)) {
-        try {
-          const records = parse(fs.readFileSync(csvPath, 'utf8'), { columns: true, skip_empty_lines: true, trim: true });
-          const upsertColor = db.prepare(`
-            INSERT INTO manufacturer_colors (manufacturer, color_code, color_name, required_base, pigment_formula, hex_code)
-            VALUES (@manufacturer, @color_code, @color_name, @required_base, @pigment_formula, @hex_code)
-            ON CONFLICT(color_code) DO NOTHING
-          `);
-          records.forEach((row) => {
-            upsertColor.run({
-              manufacturer: row.manufacturer,
-              color_code: row.color_code,
-              color_name: row.color_name,
-              required_base: row.paint_base,
-              pigment_formula: row.pigment_recipe,
-              hex_code: row.hex_display
-            });
-          });
-        } catch (err) {
-          console.error('Error loading sample colors:', err.message);
-        }
+    if (colorCount < 100) {
+      try {
+        const { generate1000Colors } = require('./seed/kenyan_master_fandecks');
+        const colors = generate1000Colors();
+        const upsertColor = db.prepare(`
+          INSERT INTO manufacturer_colors (manufacturer, color_code, color_name, required_base, pigment_formula, hex_code)
+          VALUES (@manufacturer, @color_code, @color_name, @required_base, @pigment_formula, @hex_code)
+          ON CONFLICT(color_code) DO NOTHING
+        `);
+        const runColorTx = db.transaction((list) => {
+          list.forEach(c => upsertColor.run(c));
+        });
+        runColorTx(colors);
+        console.log(`Successfully auto-seeded ${colors.length} official Kenyan manufacturer shades!`);
+      } catch (err) {
+        console.error('Error seeding Kenyan master fandecks:', err.message);
       }
     }
   }

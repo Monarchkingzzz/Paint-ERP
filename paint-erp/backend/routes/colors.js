@@ -9,11 +9,35 @@ const { generate1000Colors } = require('../seed/kenyan_master_fandecks');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// GET /api/colors/search?q=gold&limit=2500
+// GET /api/colors/search?q=gold&limit=3000
 router.get('/search', requireAuth, (req, res) => {
   const qStr = req.query.q ? req.query.q.trim() : '';
   const limit = Math.min(5000, parseInt(req.query.limit || '3000', 10));
   const q = `%${qStr}%`;
+
+  // Auto-seed if database was newly created and has no colors
+  let count = 0;
+  try {
+    count = db.prepare('SELECT COUNT(*) AS total FROM manufacturer_colors').get().total;
+  } catch (e) {}
+
+  if (count < 100) {
+    try {
+      const colors = generate1000Colors();
+      const upsertColor = db.prepare(`
+        INSERT INTO manufacturer_colors (manufacturer, color_code, color_name, required_base, pigment_formula, hex_code)
+        VALUES (@manufacturer, @color_code, @color_name, @required_base, @pigment_formula, @hex_code)
+        ON CONFLICT(color_code) DO NOTHING
+      `);
+      const runColorTx = db.transaction((list) => {
+        list.forEach(c => upsertColor.run(c));
+      });
+      runColorTx(colors);
+    } catch (err) {
+      console.error('Error auto-seeding colors on search:', err.message);
+    }
+  }
+
   const rows = db.prepare(`
     SELECT color_id, manufacturer, color_code, color_name,
            required_base, required_base AS paint_base,
