@@ -1,0 +1,10 @@
+{
+  "name": "paint-erp-root",
+  "version": "1.0.0",
+  "description": "Kenyan Paint Hardware ERP Root Workspace Runner",
+  "scripts": {
+    "dev": "node --watch paint-erp/backend/server.js",
+    "start": "node paint-erp/backend/server.js",
+    "seed": "node paint-erp/backend/seed/seed.js"
+  }
+}

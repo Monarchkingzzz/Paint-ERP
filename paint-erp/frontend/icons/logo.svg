@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="paintGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0369a1"/>
+    </linearGradient>
+    <linearGradient id="metalGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f1f5f9"/>
+      <stop offset="40%" stop-color="#cbd5e1"/>
+      <stop offset="80%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+    <linearGradient id="goldDrip" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="#090d16" stroke="#1e293b" stroke-width="1.8"/>
+  <path d="M13 24 L17 51 Q17 54 21 54 L37 54 Q41 54 41 51 L45 24 Z" fill="url(#paintGrad)" stroke="#38bdf8" stroke-width="1.4"/>
+  <ellipse cx="29" cy="24" rx="16" ry="4" fill="#0284c7" stroke="#38bdf8" stroke-width="1.4"/>
+  <ellipse cx="29" cy="24" rx="13" ry="2.8" fill="url(#goldDrip)"/>
+  <path d="M14 24 Q29 9 44 24" fill="none" stroke="url(#metalGrad)" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M22 25 Q23 34 24 37 Q25 39 26 37 Q27 33 28 25 Z" fill="url(#goldDrip)"/>
+  <path d="M31 25 Q32 31 33 33 Q34 35 35 33 Q36 29 37 25 Z" fill="#38bdf8"/>
+  <g transform="rotate(-38 41 33)">
+    <rect x="38" y="14" width="6" height="38" rx="3" fill="url(#metalGrad)" stroke="#ffffff" stroke-width="0.8"/>
+    <path d="M36 17 C34 13 35 7 41 6 C45 5 48 8 50 11 L46 14 C44 13 43 13 42 14 L37 17 Z" fill="url(#metalGrad)" stroke="#ffffff" stroke-width="0.8"/>
+    <circle cx="41" cy="52" r="5.5" fill="url(#metalGrad)" stroke="#ffffff" stroke-width="0.8"/>
+    <circle cx="41" cy="52" r="2.8" fill="#090d16"/>
+  </g>
+</svg>

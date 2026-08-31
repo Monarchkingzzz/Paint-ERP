@@ -1,0 +1,40 @@
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+require('./db'); // initializes DB + seeds demo users on first run
+
+const authRoutes = require('./routes/auth');
+const colorRoutes = require('./routes/colors');
+const paintPinRoutes = require('./routes/paintpin');
+const posRoutes = require('./routes/pos');
+const stockRoutes = require('./routes/stock');
+const reportRoutes = require('./routes/reports');
+const auditRoutes = require('./routes/audit');
+const financialsRoutes = require('./routes/financials');
+const quotationsRoutes = require('./routes/quotations');
+const suppliersRoutes = require('./routes/suppliers');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+app.use('/api/auth', authRoutes);
+app.use('/api/colors', colorRoutes);
+app.use('/api/paintpin', paintPinRoutes);
+app.use('/api/pos', posRoutes);
+app.use('/api/stock', stockRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/financials', financialsRoutes);
+app.use('/api/quotations', quotationsRoutes);
+app.use('/api/suppliers', suppliersRoutes);
+
+// Serve the PWA frontend
+app.use(express.static(path.join(__dirname, '..', 'frontend')));
+
+app.get('/health', (req, res) => res.json({ ok: true }));
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, () => {
+  console.log(`Paint ERP backend running on http://localhost:${PORT}`);
+});

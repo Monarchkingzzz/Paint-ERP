@@ -1,0 +1,6 @@
+manufacturer,color_code,color_name,paint_base,pigment_recipe,hex_display
+Crown,AP154-2,Verona Gold,Pastel,"BK:0.25,YO:1.20,RE:0.05",#E2A03F
+Plascon,O2-D1-2,Coffee Shop,Deep,"BK:1.10,RO:0.80,YO:2.40",#4B3621
+Duracoat,DC-33,Ocean Breeze,Pastel,"BK:0.10,BL:1.50,GR:0.20",#6FA8DC
+Crown,AP201-1,Sunset Blush,Pastel,"RE:1.00,YO:0.40,BK:0.05",#E77F67
+Plascon,O5-B2-3,Forest Canopy,Deep,"GR:2.00,BK:0.60,YO:0.10",#2E4F2E
