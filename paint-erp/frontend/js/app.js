@@ -2490,10 +2490,10 @@ function showMpesaCheckoutModal(options) {
   function renderModalContent() {
     modal.innerHTML = `
       <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
-        <div class="modal-container-card" style="max-width: 500px; width: 100%; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); background: white;">
+        <div class="modal-container-card" style="max-width: 520px; width: 100%; max-height: 88vh; display: flex; flex-direction: column; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); background: white;">
           
-          <!-- Top M-Pesa Header -->
-          <div style="background: linear-gradient(135deg, #065f46 0%, #047857 100%); color: white; padding: 1.1rem 1.35rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #34d399;">
+          <!-- Top M-Pesa Header (Fixed) -->
+          <div style="flex-shrink: 0; background: linear-gradient(135deg, #065f46 0%, #047857 100%); color: white; padding: 1.1rem 1.35rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #34d399;">
             <div>
               <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: #a7f3d0; letter-spacing: 0.8px;">
                 🟢 Safaricom Daraja Direct Gateway
@@ -2505,14 +2505,14 @@ function showMpesaCheckoutModal(options) {
             <button class="btn-close-modal" style="color: white; background: rgba(255,255,255,0.15); border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;" id="btn-close-mpesa-modal">✕</button>
           </div>
 
-          <!-- Total Payable Amount Banner -->
-          <div style="background: #ecfdf5; border-bottom: 1px solid #d1fae5; padding: 0.85rem 1.35rem; display: flex; justify-content: space-between; align-items: center;">
+          <!-- Total Payable Amount Banner (Fixed) -->
+          <div style="flex-shrink: 0; background: #ecfdf5; border-bottom: 1px solid #d1fae5; padding: 0.85rem 1.35rem; display: flex; justify-content: space-between; align-items: center;">
             <span style="font-size: 0.84rem; font-weight: 700; color: #065f46;">Amount to Pay:</span>
             <span style="font-size: 1.35rem; font-weight: 900; color: #047857; font-family: var(--font-mono);">KES ${grandTotal.toLocaleString()}</span>
           </div>
 
-          <!-- Tab Selector Bar -->
-          <div style="padding: 1rem 1.35rem 0.5rem; display: flex; gap: 0.6rem;">
+          <!-- Tab Selector Bar (Fixed) -->
+          <div style="flex-shrink: 0; padding: 1rem 1.35rem 0.5rem; display: flex; gap: 0.6rem;">
             <button type="button" class="mpesa-tab-btn ${activeTab === 'stk' ? 'active' : ''}" id="tab-btn-stk">
               <span>📲</span> STK PIN Prompt (Instant)
             </button>
@@ -2521,8 +2521,8 @@ function showMpesaCheckoutModal(options) {
             </button>
           </div>
 
-          <!-- Modal Body Dynamic Tab Container -->
-          <div style="padding: 1rem 1.35rem 1.35rem;" id="mpesa-tab-body">
+          <!-- Modal Body Dynamic Tab Container (Scrollable) -->
+          <div style="overflow-y: auto; flex: 1; padding: 1rem 1.35rem 1.5rem;" id="mpesa-tab-body">
             ${activeTab === 'stk' ? renderStkTabHtml() : renderC2bTabHtml()}
           </div>
         </div>
@@ -2881,23 +2881,23 @@ async function showMpesaConfigModal() {
 
   modal.innerHTML = `
     <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
-      <div class="modal-container-card" style="max-width: 520px; width: 100%; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); background: white;">
+      <div class="modal-container-card" style="max-width: 620px; width: 100%; max-height: 88vh; display: flex; flex-direction: column; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); background: white;">
         
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 1.1rem 1.35rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #059669;">
+        <!-- Header (Fixed) -->
+        <div style="flex-shrink: 0; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 1.15rem 1.4rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #059669;">
           <div>
             <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: #34d399; letter-spacing: 0.8px;">
               ⚙️ Payment Gateway Setup
             </div>
-            <h3 style="margin: 2px 0 0; font-size: 1.2rem; font-weight: 900; color: white;">
+            <h3 style="margin: 2px 0 0; font-size: 1.25rem; font-weight: 900; color: white;">
               📱 Safaricom Daraja M-Pesa Settings
             </h3>
           </div>
           <button class="btn-close-modal" style="color: white; background: rgba(255,255,255,0.15); border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;" onclick="document.getElementById('modal-container').innerHTML=''">✕</button>
         </div>
 
-        <!-- Body -->
-        <div style="padding: 1.25rem 1.35rem;" id="mpesa-config-form-container">
+        <!-- Body (Scrollable) -->
+        <div style="overflow-y: auto; flex: 1; padding: 1.35rem 1.5rem;" id="mpesa-config-form-container">
           <div style="text-align: center; padding: 2rem;">
             <div class="spinner" style="margin: 0 auto 0.5rem;"></div>
             <p>Loading gateway settings...</p>
@@ -2915,50 +2915,65 @@ async function showMpesaConfigModal() {
     container.innerHTML = `
       <form id="form-mpesa-settings">
         <!-- Environment Switcher -->
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Daraja Environment</label>
-          <select id="cfg-mpesa-env" class="form-control" style="font-weight: 700;">
+        <div class="form-group" style="margin-bottom: 1.2rem;">
+          <label style="font-size: 0.84rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+            Daraja Gateway Environment
+          </label>
+          <select id="cfg-mpesa-env" class="form-control" style="font-weight: 800; font-size: 0.95rem; padding: 0.75rem 1rem; border: 2px solid #cbd5e1; border-radius: 10px;">
             <option value="sandbox" ${config.env === 'sandbox' ? 'selected' : ''}>🧪 Sandbox (Testing / Development)</option>
-            <option value="production" ${config.env === 'production' ? 'selected' : ''}>🟢 Live Production (Real Money)</option>
+            <option value="production" ${config.env === 'production' ? 'selected' : ''}>🟢 Live Production (Real Customer Money)</option>
           </select>
         </div>
 
-        <!-- Shortcode / Paybill -->
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+        <!-- Shortcode / Paybill & Till in 2 Columns -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.2rem;">
           <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Shortcode / Paybill</label>
-            <input type="text" id="cfg-mpesa-shortcode" class="form-control" value="${escapeHtml(config.shortcode || '174379')}" placeholder="174379" style="font-family: var(--font-mono); font-weight: 700;" />
+            <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+              Business Shortcode / Paybill
+            </label>
+            <input type="text" id="cfg-mpesa-shortcode" class="form-control" value="${escapeHtml(config.shortcode || '174379')}" placeholder="174379" style="font-family: var(--font-mono); font-weight: 800; font-size: 1rem; padding: 0.75rem 1rem; border-radius: 10px;" />
           </div>
           <div class="form-group" style="margin-bottom: 0;">
-            <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Buy Goods Till</label>
-            <input type="text" id="cfg-mpesa-till" class="form-control" value="${escapeHtml(config.till_number || '174379')}" placeholder="Till Number" style="font-family: var(--font-mono); font-weight: 700;" />
+            <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+              Buy Goods Till Number
+            </label>
+            <input type="text" id="cfg-mpesa-till" class="form-control" value="${escapeHtml(config.till_number || '174379')}" placeholder="Till Number" style="font-family: var(--font-mono); font-weight: 800; font-size: 1rem; padding: 0.75rem 1rem; border-radius: 10px;" />
           </div>
         </div>
 
         <!-- Consumer Key -->
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Consumer Key</label>
-          <input type="text" id="cfg-mpesa-key" class="form-control" value="${escapeHtml(config.consumer_key || '')}" placeholder="Paste Consumer Key" style="font-family: var(--font-mono); font-size: 0.85rem;" />
+        <div class="form-group" style="margin-bottom: 1.2rem;">
+          <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+            Daraja Consumer Key
+          </label>
+          <input type="text" id="cfg-mpesa-key" class="form-control" value="${escapeHtml(config.consumer_key || '')}" placeholder="Paste Daraja Consumer Key" style="font-family: var(--font-mono); font-size: 0.9rem; padding: 0.75rem 1rem; border-radius: 10px;" />
         </div>
 
         <!-- Consumer Secret -->
-        <div class="form-group" style="margin-bottom: 1rem;">
-          <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Consumer Secret</label>
-          <input type="password" id="cfg-mpesa-secret" class="form-control" value="${escapeHtml(config.consumer_secret || '')}" placeholder="Paste Consumer Secret" style="font-family: var(--font-mono); font-size: 0.85rem;" />
+        <div class="form-group" style="margin-bottom: 1.2rem;">
+          <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+            Daraja Consumer Secret
+          </label>
+          <input type="password" id="cfg-mpesa-secret" class="form-control" value="${escapeHtml(config.consumer_secret || '')}" placeholder="Paste Daraja Consumer Secret" style="font-family: var(--font-mono); font-size: 0.9rem; padding: 0.75rem 1rem; border-radius: 10px;" />
         </div>
 
         <!-- Passkey -->
-        <div class="form-group" style="margin-bottom: 1.25rem;">
-          <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Lipa Na M-Pesa Online Passkey</label>
-          <input type="text" id="cfg-mpesa-passkey" class="form-control" placeholder="Paste Passkey (Leave blank to keep current)" style="font-family: var(--font-mono); font-size: 0.85rem;" />
+        <div class="form-group" style="margin-bottom: 1.4rem;">
+          <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+            Lipa Na M-Pesa Online Passkey (STK Push)
+          </label>
+          <input type="text" id="cfg-mpesa-passkey" class="form-control" placeholder="Paste Passkey (Leave blank to keep current)" style="font-family: var(--font-mono); font-size: 0.88rem; padding: 0.75rem 1rem; border-radius: 10px;" />
+          <small style="color: #64748b; font-size: 0.76rem; margin-top: 4px; display: block;">
+            Find in Daraja Portal > Lipa Na M-Pesa Online > Passkey.
+          </small>
         </div>
 
-        <!-- Action Buttons -->
-        <div style="display: flex; gap: 0.6rem; justify-content: flex-end;">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-container').innerHTML=''">
+        <!-- Action Buttons Footer -->
+        <div style="display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid #e2e8f0;">
+          <button type="button" class="btn btn-secondary" style="padding: 0.75rem 1.4rem; font-weight: 700; border-radius: 8px;" onclick="document.getElementById('modal-container').innerHTML=''">
             Cancel
           </button>
-          <button type="submit" class="btn btn-primary" id="btn-save-mpesa-config" style="background: #059669; border-color: #059669; font-weight: 800;">
+          <button type="submit" class="btn btn-primary" id="btn-save-mpesa-config" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); border: none; color: #ffffff !important; font-weight: 900; font-size: 0.95rem; padding: 0.75rem 1.6rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);">
             💾 Save Gateway Settings
           </button>
         </div>
