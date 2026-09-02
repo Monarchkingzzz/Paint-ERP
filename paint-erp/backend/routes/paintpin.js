@@ -30,7 +30,7 @@ function parsePigmentFormula(formula) {
 
 // POST /api/paintpin/mix
 // body: { color_id, customer_phone, painter_phone, tin_size_litres, quantity_mixed, base_id }
-router.post('/mix', requireAuth, (req, res) => {
+router.post('/mix', requireAuth, async (req, res) => {
   const { color_id, customer_phone, painter_phone, tin_size_litres, quantity_mixed, base_id } = req.body;
 
   if (!color_id || !customer_phone || !tin_size_litres || !base_id) {
@@ -81,7 +81,7 @@ router.post('/mix', requireAuth, (req, res) => {
   });
   mixTransaction();
 
-  syncToSupabase('paint_pin_ledger', {
+  await syncToSupabase('paint_pin_ledger', {
     paint_pin: pin,
     color_id: Number(color_id),
     customer_phone: customer_phone,
@@ -91,7 +91,7 @@ router.post('/mix', requireAuth, (req, res) => {
     created_by: req.user.user_id
   });
 
-  logAction({
+  await logAction({
     userId: req.user.user_id,
     deviceFingerprint: req.deviceFingerprint,
     action: 'PAINT_MIXED',

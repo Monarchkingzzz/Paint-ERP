@@ -101,7 +101,7 @@ router.get('/cashflow', requireAuth, (req, res) => {
 });
 
 // 2. RECORD SHOP EXPENSE (Simple everyday expense)
-router.post('/expense', requireAuth, requireOwner, (req, res) => {
+router.post('/expense', requireAuth, requireOwner, async (req, res) => {
   const { category, amount_kes, recipient, payment_method = 'Cash', account_id, notes } = req.body;
   if (!category || !amount_kes || Number(amount_kes) <= 0 || !recipient) {
     return res.status(400).json({ error: 'Expense category, recipient person/store, and valid positive amount are required.' });
@@ -124,18 +124,13 @@ router.post('/expense', requireAuth, requireOwner, (req, res) => {
       WHERE account_id = ?
     `).run(amt, accId);
 
-    db.prepare(`
-      INSERT INTO audit_log (user_id, device_fingerprint, action, details, status)
-      VALUES (?, ?, 'EXPENSE_LOGGED', ?, 'ALLOWED')
-    `).run(req.user.user_id, req.headers['x-device-fingerprint'] || 'unknown', `Logged shop expense: KES ${amt} for ${category} paid to ${recipient} via ${payment_method}`);
-
     return info.lastInsertRowid;
   });
 
   try {
     const expenseId = execExpense();
     
-    syncToSupabase('expenses', {
+    await syncToSupabase('expenses', {
       expense_id: Number(expenseId),
       category: category.trim(),
       amount_kes: amt,
@@ -146,7 +141,7 @@ router.post('/expense', requireAuth, requireOwner, (req, res) => {
       recorded_by: req.user.user_id
     });
 
-    logAction({
+    await logAction({
       userId: req.user.user_id,
       deviceFingerprint: req.headers['x-device-fingerprint'] || 'unknown',
       action: 'EXPENSE_LOGGED',

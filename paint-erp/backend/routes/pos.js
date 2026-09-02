@@ -7,7 +7,7 @@ const { logAction } = require('../audit');
 const { syncToSupabase } = require('../supabaseSync');
 
 // Helper to handle invoice/checkout logic
-function processCheckout(req, res) {
+async function processCheckout(req, res) {
   try {
     let { customer_phone, payment_method, mpesa_receipt_code, items, lines } = req.body;
     const rawItems = items || lines;
@@ -134,7 +134,7 @@ function processCheckout(req, res) {
 
     // Real-time Supabase sync for invoice & items
     try {
-      syncToSupabase('invoices', {
+      await syncToSupabase('invoices', {
         invoice_id: Number(invoiceId),
         created_by: req.user.user_id,
         customer_phone: customer_phone || null,
@@ -152,12 +152,12 @@ function processCheckout(req, res) {
         unit_price_kes: Number(item.unit_price_kes) || 0,
         line_cost_kes: Number(item.line_cost_kes) || 0
       }));
-      syncToSupabase('invoice_items', supabaseItems);
+      await syncToSupabase('invoice_items', supabaseItems);
     } catch (sErr) {
       console.error('Supabase sync warning:', sErr.message);
     }
 
-    logAction({
+    await logAction({
       userId: req.user.user_id,
       deviceFingerprint: req.deviceFingerprint,
       action: 'INVOICE_CREATED',
@@ -258,7 +258,7 @@ router.get('/mpesa/status/:checkoutRequestId', async (req, res) => {
 
 // POST /api/pos/mpesa/verify-code
 // Cashier manually validates customer's M-Pesa transaction code
-router.post('/mpesa/verify-code', requireAuth, (req, res) => {
+router.post('/mpesa/verify-code', requireAuth, async (req, res) => {
   const { receipt_code, amount_kes, invoice_id, phone_number } = req.body;
   if (!receipt_code || !amount_kes) {
     return res.status(400).json({ error: 'receipt_code and amount_kes are required.' });
@@ -298,7 +298,7 @@ router.post('/mpesa/verify-code', requireAuth, (req, res) => {
 
   db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(amount);
 
-  syncToSupabase('mpesa_payments', {
+  await syncToSupabase('mpesa_payments', {
     transaction_id: info.lastInsertRowid,
     mpesa_receipt_code: cleanCode,
     phone_number: phone,
@@ -308,7 +308,7 @@ router.post('/mpesa/verify-code', requireAuth, (req, res) => {
     invoice_id: invoice_id || null
   });
 
-  logAction({
+  await logAction({
     userId: req.user.user_id,
     deviceFingerprint: req.deviceFingerprint,
     action: 'MPESA_CODE_VERIFIED',
@@ -320,14 +320,14 @@ router.post('/mpesa/verify-code', requireAuth, (req, res) => {
 });
 
 // POST /api/pos/mpesa/callback  - webhook Safaricom calls when payment clears
-router.post('/mpesa/callback', (req, res) => {
-  const result = handleStkCallback(req.body);
+router.post('/mpesa/callback', async (req, res) => {
+  const result = await handleStkCallback(req.body);
   res.json({ ResultCode: 0, ResultDesc: 'Callback processed successfully', result });
 });
 
 // POST /api/pos/mpesa/c2b/confirmation & validation
-router.post('/mpesa/c2b/confirmation', (req, res) => {
-  const result = handleC2BConfirmation(req.body);
+router.post('/mpesa/c2b/confirmation', async (req, res) => {
+  const result = await handleC2BConfirmation(req.body);
   res.json(result);
 });
 

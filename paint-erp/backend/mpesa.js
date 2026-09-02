@@ -203,7 +203,7 @@ async function sendStkPush({ phone, amount, invoiceId, description, userId, devi
   `).run(checkoutRequestId, merchantRequestId, formattedPhone, roundedAmount, invoiceId || null, JSON.stringify({ simulated: !realStkSuccess, timestamp }));
 
   // Sync to Supabase
-  syncToSupabase('mpesa_payments', {
+  await syncToSupabase('mpesa_payments', {
     checkout_request_id: checkoutRequestId,
     merchant_request_id: merchantRequestId,
     phone_number: formattedPhone,
@@ -213,7 +213,7 @@ async function sendStkPush({ phone, amount, invoiceId, description, userId, devi
     invoice_id: invoiceId || null
   });
 
-  logAction({
+  await logAction({
     userId: userId || null,
     deviceFingerprint: deviceFingerprint || 'pos-stk',
     action: 'MPESA_STK_PUSH_SENT',
@@ -344,7 +344,7 @@ async function queryStkStatus({ checkoutRequestId }) {
 /**
  * Handle Webhook Callbacks from Safaricom Daraja
  */
-function handleStkCallback(callbackBody) {
+async function handleStkCallback(callbackBody) {
   try {
     const stkCallback = callbackBody && callbackBody.Body && callbackBody.Body.stkCallback;
     if (!stkCallback) return { ok: false, error: 'Invalid STK callback structure' };
@@ -381,7 +381,7 @@ function handleStkCallback(callbackBody) {
         db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(payment.amount_kes);
       }
 
-      updateSupabase('mpesa_payments', { checkout_request_id: checkoutRequestId }, {
+      await updateSupabase('mpesa_payments', { checkout_request_id: checkoutRequestId }, {
         payment_status: newStatus,
         mpesa_receipt_code: receiptNumber || payment.mpesa_receipt_code,
         result_code: resultCode,
@@ -389,7 +389,7 @@ function handleStkCallback(callbackBody) {
       });
     }
 
-    logAction({
+    await logAction({
       userId: null,
       deviceFingerprint: 'daraja-webhook',
       action: 'MPESA_CALLBACK_RECEIVED',
@@ -407,7 +407,7 @@ function handleStkCallback(callbackBody) {
 /**
  * Handle C2B Confirmation Webhook (Paybill / Buy Goods)
  */
-function handleC2BConfirmation(c2bBody) {
+async function handleC2BConfirmation(c2bBody) {
   try {
     const receipt = c2bBody.TransID;
     const amount = Number(c2bBody.TransAmount);
@@ -426,7 +426,7 @@ function handleC2BConfirmation(c2bBody) {
 
       db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(amount);
 
-      syncToSupabase('mpesa_payments', {
+      await syncToSupabase('mpesa_payments', {
         mpesa_receipt_code: receipt,
         phone_number: phone,
         amount_kes: amount,
