@@ -3326,7 +3326,12 @@ function attachPinCardListeners(list, baseTins) {
         try {
           const payload = {
             color_id: record.color_id,
-            base_id: matchingBase.base_id,
+            color_name: record.color_name,
+            manufacturer: record.manufacturer,
+            color_code: record.color_code,
+            pigment_formula: record.pigment_formula,
+            hex_code: record.hex_code,
+            base_id: matchingBase ? matchingBase.base_id : null,
             tin_size_litres: tinSize,
             quantity_mixed: qty,
             customer_phone: phone,

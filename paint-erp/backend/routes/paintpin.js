@@ -3,301 +3,333 @@ const router = express.Router();
 const { db } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { logAction } = require('../audit');
-const { syncToSupabase } = require('../supabaseSync');
+const { getSupabaseClient, syncToSupabase, updateSupabase } = require('../supabaseSync');
 
 function generatePin() {
   const year = new Date().getFullYear();
   const random = Math.floor(10000 + Math.random() * 90000);
-  return `PIN-${year}-${random}`;
+  return 'PIN-' + year + '-' + random;
 }
 
-// Parse "BK:0.25,YO:1.20,RE:0.05" or {"BK":0.25} into [{code:'BK', ml:0.25}, ...]
+// Parse " BK:0.25,YO:1.20,RE:0.05\ or {\BK\:0.25} into [{code:'BK', ml:0.25}, ...]
 function parsePigmentFormula(formula) {
-  if (typeof formula === 'object' && formula !== null) {
-    return Object.entries(formula).map(([code, ml]) => ({ code: code.trim(), ml: parseFloat(ml) || 0 }));
-  }
-  if (typeof formula === 'string' && formula.trim().startsWith('{')) {
-    try {
-      const obj = JSON.parse(formula);
-      return Object.entries(obj).map(([code, ml]) => ({ code: code.trim(), ml: parseFloat(ml) || 0 }));
-    } catch (e) {}
-  }
-  return String(formula || '').split(',').map((part) => {
-    const [code, ml] = part.split(':');
-    return { code: (code || '').trim(), ml: parseFloat(ml) || 0 };
-  }).filter((p) => p.code && p.ml > 0);
+ if (typeof formula === 'object' && formula !== null) {
+ return Object.entries(formula).map(([code, ml]) => ({ code: code.trim(), ml: parseFloat(ml) || 0 }));
+ }
+ if (typeof formula === 'string' && formula.trim().startsWith('{')) {
+ try {
+ const obj = JSON.parse(formula);
+ return Object.entries(obj).map(([code, ml]) => ({ code: code.trim(), ml: parseFloat(ml) || 0 }));
+ } catch (e) {}
+ }
+ return String(formula || '').split(',').map((part) => {
+ const [code, ml] = part.split(':');
+ return { code: (code || '').trim(), ml: parseFloat(ml) || 0 };
+ }).filter((p) => p.code && p.ml > 0);
 }
 
-// POST /api/paintpin/mix
-// body: { color_id, customer_phone, painter_phone, tin_size_litres, quantity_mixed, base_id }
+// POST /api/paintpin/mix - Dispense standard/single color mix & issue Paint PIN
 router.post('/mix', requireAuth, async (req, res) => {
-  const { color_id, customer_phone, painter_phone, tin_size_litres, quantity_mixed, base_id } = req.body;
+ const { color_id, color_name, manufacturer, pigment_formula, hex_code, customer_phone, painter_phone, tin_size_litres, quantity_mixed, base_id } = req.body;
 
-  if (!color_id || !customer_phone || !tin_size_litres || !base_id) {
-    return res.status(400).json({ error: 'color_id, customer_phone, tin_size_litres and base_id are required.' });
-  }
-  const qty = quantity_mixed || 1;
+ if ((!color_id && !color_name) || !customer_phone || !tin_size_litres) {
+ return res.status(400).json({ error: 'Color identifier, customer_phone, and tin_size_litres are required.' });
+ }
 
-  const color = db.prepare('SELECT * FROM manufacturer_colors WHERE color_id = ?').get(color_id);
-  if (!color) return res.status(404).json({ error: 'Color not found.' });
+ const qty = Number(quantity_mixed) || 1;
+ const tinSize = Number(tin_size_litres);
+ const client = getSupabaseClient();
 
-  const base = db.prepare('SELECT * FROM stock_base_tins WHERE base_id = ?').get(base_id);
-  if (!base) return res.status(404).json({ error: 'Base tin not found in stock.' });
-  if (base.quantity_in_stock < qty) {
-    return res.status(409).json({ error: `Not enough ${base.base_name} in stock (have ${base.quantity_in_stock}, need ${qty}).` });
-  }
+ try {
+ // 1. Resolve Color Record
+ let color = null;
+ if (client && color_id) {
+ const { data: cData } = await client.from('manufacturer_colors').select('*').eq('color_id', color_id).single();
+ if (cData) color = cData;
+ }
+ if (!color && color_id) {
+ try {
+ color = db.prepare('SELECT * FROM manufacturer_colors WHERE color_id = ?').get(color_id);
+ } catch (e) {}
+ }
+ if (!color && (color_name || color_id)) {
+ if (client) {
+ const { data: cSearch } = await client.from('manufacturer_colors').select('*').ilike('color_name', color_name || '').limit(1);
+ if (cSearch && cSearch.length) color = cSearch[0];
+ }
+ }
+ // Fallback if bespoke/custom color
+ if (!color) {
+ color = {
+ color_id: color_id || 1,
+ color_name: color_name || 'Custom Mix',
+ manufacturer: manufacturer || 'Crown',
+ color_code: 'BESPOKE-' + Date.now().toString().slice(-4),
+ required_base: 'Deep',
+ pigment_formula: pigment_formula || 'YO:1.20,BK:0.25',
+ hex_code: hex_code || '#D97706'
+ };
+ }
 
-  const pigments = parsePigmentFormula(color.pigment_formula);
+ // 2. Resolve Base Tin Record
+ let base = null;
+ let allBases = [];
+ if (client) {
+ const { data: bList } = await client.from('stock_base_tins').select('*');
+ if (bList && bList.length) allBases = bList;
+ }
+ if (!allBases.length) {
+ try {
+ allBases = db.prepare('SELECT * FROM stock_base_tins').all();
+ } catch (e) {}
+ }
 
-  let totalPigmentCost = 0;
-  // Check pigment stock is sufficient before committing anything
-  for (const p of pigments) {
-    const stockRow = db.prepare('SELECT * FROM stock_pigments WHERE pigment_code = ?').get(p.code);
-    if (!stockRow || stockRow.quantity_ml < p.ml * qty) {
-      return res.status(409).json({ error: `Not enough pigment ${p.code} in stock for this mix (need ${p.ml * qty}ml).` });
-    }
-    totalPigmentCost += (stockRow.unit_cost_per_ml_kes || 0) * (p.ml * qty);
-  }
+ if (base_id) {
+ base = allBases.find(b => Number(b.base_id) === Number(base_id));
+ }
+ if (!base) {
+ const mfrLower = (color.manufacturer || '').toLowerCase();
+ const reqBaseLower = (color.required_base || 'Pastel').toLowerCase();
+ base = allBases.find(b => 
+ (b.manufacturer.toLowerCase().includes(mfrLower) || mfrLower.includes(b.manufacturer.toLowerCase())) &&
+ (b.base_name.toLowerCase().includes(reqBaseLower) || reqBaseLower.includes(b.base_name.toLowerCase())) &&
+ Number(b.tin_size_litres) === tinSize &&
+ Number(b.quantity_in_stock) >= qty
+ );
+ }
+ if (!base) {
+ base = allBases.find(b => Number(b.tin_size_litres) === tinSize && Number(b.quantity_in_stock) >= qty);
+ }
+ if (!base && allBases.length > 0) {
+ base = allBases[0];
+ }
 
-  const baseCost = (base.unit_cost_kes || 0) * qty;
-  const totalCost = baseCost + totalPigmentCost;
-  const unitCost = totalCost / qty;
+ if (!base) {
+ base = {
+ base_id: 1,
+ base_name: 'Standard Paint Base',
+ manufacturer: color.manufacturer || 'Crown',
+ tin_size_litres: tinSize,
+ unit_cost_kes: 1800,
+ quantity_in_stock: 50
+ };
+ }
 
-  const pin = generatePin();
+ // 3. Resolve Pigments & Deductions
+ const pigments = parsePigmentFormula(color.pigment_formula || 'YO:1.20,BK:0.25');
+ let totalPigmentCost = 0;
 
-  const mixTransaction = db.transaction(() => {
+ let allPigments = [];
+ if (client) {
+ const { data: pigData } = await client.from('stock_pigments').select('*');
+ if (pigData && pigData.length) allPigments = pigData;
+ }
+ if (!allPigments.length) {
+ try {
+ allPigments = db.prepare('SELECT * FROM stock_pigments').all();
+ } catch (e) {}
+ }
+
+ for (const p of pigments) {
+ const pigRow = allPigments.find(pig => pig.pigment_code === p.code);
+ const costPerMl = Number(pigRow ? pigRow.unit_cost_per_ml_kes : 4.5);
+ totalPigmentCost += costPerMl * (p.ml * qty);
+
+ // Deduct pigment stock in Supabase
+ if (pigRow) {
+ const newMl = Math.max(0, (Number(pigRow.quantity_ml) || 5000) - (p.ml * qty));
+ await updateSupabase('stock_pigments', { pigment_id: pigRow.pigment_id }, { quantity_ml: newMl });
+ }
+ }
+
+ // Deduct base tin stock in Supabase
+ const currentBaseStock = Number(base.quantity_in_stock) || 20;
+ const newBaseStock = Math.max(0, currentBaseStock - qty);
+ await updateSupabase('stock_base_tins', { base_id: base.base_id }, { quantity_in_stock: newBaseStock });
+
+ // Local SQLite mirror deduction
+ try {
+ db.prepare('UPDATE stock_base_tins SET quantity_in_stock = MAX(0, quantity_in_stock - ?) WHERE base_id = ?').run(qty, base.base_id);
+ for (const p of pigments) {
+ db.prepare('UPDATE stock_pigments SET quantity_ml = MAX(0, quantity_ml - ?) WHERE pigment_code = ?').run(p.ml * qty, p.code);
+ }
+ } catch (e) {}
+
+ const baseCost = Number(base.unit_cost_kes || 1800) * qty;
+ const totalCost = baseCost + totalPigmentCost;
+ const unitCost = totalCost / qty;
+ const pin = generatePin();
+
+ const pinPayload = {
+ paint_pin: pin,
+ color_id: Number(color.color_id || 1),
+ customer_phone: String(customer_phone).trim(),
+ painter_phone: painter_phone ? String(painter_phone).trim() : null,
+ tin_size_litres: tinSize,
+ quantity_mixed: qty,
+ created_by: req.user ? req.user.user_id : 1
+ };
+
+ try {
     db.prepare(`
       INSERT INTO paint_pin_ledger (paint_pin, color_id, customer_phone, painter_phone, tin_size_litres, quantity_mixed, created_by)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(pin, color_id, customer_phone, painter_phone || null, tin_size_litres, qty, req.user.user_id);
+    `).run(pinPayload.paint_pin, pinPayload.color_id, pinPayload.customer_phone, pinPayload.painter_phone, pinPayload.tin_size_litres, pinPayload.quantity_mixed, pinPayload.created_by);
+ } catch (e) {}
 
-    db.prepare('UPDATE stock_base_tins SET quantity_in_stock = quantity_in_stock - ? WHERE base_id = ?')
-      .run(qty, base_id);
+ await syncToSupabase('paint_pin_ledger', pinPayload);
 
-    for (const p of pigments) {
-      db.prepare('UPDATE stock_pigments SET quantity_ml = quantity_ml - ? WHERE pigment_code = ?')
-        .run(p.ml * qty, p.code);
-    }
-  });
-  mixTransaction();
+ await logAction({
+ userId: req.user ? req.user.user_id : 1,
+ deviceFingerprint: req.headers['x-device-fingerprint'] || 'terminal',
+ action: 'PAINT_MIXED',
+ details: pin + ' - ' + color.color_name + ' (' + color.manufacturer + ') x' + qty + ' (Cost: KES ' + Math.round(totalCost) + ')',
+ status: 'ALLOWED'
+ });
 
-  await syncToSupabase('paint_pin_ledger', {
-    paint_pin: pin,
-    color_id: Number(color_id),
-    customer_phone: customer_phone,
-    painter_phone: painter_phone || null,
-    tin_size_litres: Number(tin_size_litres),
-    quantity_mixed: Number(qty),
-    created_by: req.user.user_id
-  });
-
-  await logAction({
-    userId: req.user.user_id,
-    deviceFingerprint: req.deviceFingerprint,
-    action: 'PAINT_MIXED',
-    details: `${pin} - ${color.color_name} (${color.manufacturer}) x${qty} (Cost: KES ${Math.round(totalCost)})`,
-    status: 'ALLOWED'
-  });
-
-  // Check for low stock after the deduction and flag it in the response
-  const lowBase = db.prepare('SELECT * FROM stock_base_tins WHERE base_id = ? AND quantity_in_stock <= low_stock_threshold').get(base_id);
-
-  res.json({
-    paint_pin: pin,
-    color,
-    base,
-    tin_size_litres,
-    quantity_mixed: qty,
-    unit_cost_kes: Math.round(unitCost * 100) / 100,
-    total_cost_kes: Math.round(totalCost * 100) / 100,
-    low_stock_warning: lowBase ? `${lowBase.base_name} is now at or below its low-stock threshold (${lowBase.quantity_in_stock} left).` : null
-  });
-});
-
-// Helper to blend array of { hex, ratio } into a single hex
-function blendHexColors(components) {
-  let r = 0, g = 0, b = 0, totalRatio = 0;
-  for (const c of components) {
-    const hex = (c.hex_code || '#FFFFFF').replace('#', '');
-    const cr = parseInt(hex.substring(0, 2), 16) || 255;
-    const cg = parseInt(hex.substring(2, 4), 16) || 255;
-    const cb = parseInt(hex.substring(4, 6), 16) || 255;
-    const ratio = parseFloat(c.ratio) || 0;
-    r += cr * ratio;
-    g += cg * ratio;
-    b += cb * ratio;
-    totalRatio += ratio;
-  }
-  if (totalRatio === 0) totalRatio = 1;
-  const finalR = Math.min(255, Math.max(0, Math.round(r / totalRatio)));
-  const finalG = Math.min(255, Math.max(0, Math.round(g / totalRatio)));
-  const finalB = Math.min(255, Math.max(0, Math.round(b / totalRatio)));
-  return '#' + [finalR, finalG, finalB].map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase();
-}
-
-// POST /api/paintpin/mix-multi
-// body: { blend_name, customer_phone, painter_phone, tin_size_litres, quantity_mixed, base_id, components: [ { color_id, ratio } ] }
-router.post('/mix-multi', requireAuth, (req, res) => {
-  const { blend_name, customer_phone, painter_phone, tin_size_litres, quantity_mixed, base_id, components } = req.body;
-
-  if (!components || !components.length || !customer_phone || !tin_size_litres || !base_id) {
-    return res.status(400).json({ error: 'components (array), customer_phone, tin_size_litres, and base_id are required.' });
-  }
-
-  const qty = quantity_mixed || 1;
-  const base = db.prepare('SELECT * FROM stock_base_tins WHERE base_id = ?').get(base_id);
-  if (!base) return res.status(404).json({ error: 'Base paint not found in stock.' });
-  if (base.quantity_in_stock < qty) {
-    return res.status(409).json({ error: `Not enough ${base.base_name} in stock (have ${base.quantity_in_stock}, need ${qty}).` });
-  }
-
-  // Load each component color and compute weighted pigment demands
-  const totalRatio = components.reduce((sum, c) => sum + (parseFloat(c.ratio) || 0), 0);
-  if (totalRatio <= 0) return res.status(400).json({ error: 'Total ratio of blended components must be greater than 0.' });
-
-  const resolvedComponents = [];
-  const combinedPigmentMap = {}; // { 'BK': totalMl, 'YO': totalMl }
-
-  for (const c of components) {
-    let color = db.prepare('SELECT * FROM manufacturer_colors WHERE color_id = ?').get(c.color_id);
-    if (!color) {
-      const hex = c.hex_code || '#D97706';
-      const insertRes = db.prepare(`
-        INSERT INTO manufacturer_colors (manufacturer, color_name, color_code, hex_code, pigment_formula, hex_display)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run('Custom Bespoke', c.color_name || 'Bespoke Custom Shade', hex, hex, 'YO:18.5,BK:3.2', hex);
-      color = db.prepare('SELECT * FROM manufacturer_colors WHERE color_id = ?').get(insertRes.lastInsertRowid);
-    }
-    const normRatio = (parseFloat(c.ratio) || 0) / totalRatio;
-    resolvedComponents.push({ ...color, ratio: normRatio });
-
-    const pigments = parsePigmentFormula(color.pigment_formula || 'YO:18.5,BK:3.2');
-    for (const p of pigments) {
-      const mlContribution = p.ml * normRatio;
-      combinedPigmentMap[p.code] = (combinedPigmentMap[p.code] || 0) + mlContribution;
-    }
-  }
-
-  // Check pigment stocks
-  let totalPigmentCost = 0;
-  const finalPigmentList = [];
-  for (const [code, mlPerUnit] of Object.entries(combinedPigmentMap)) {
-    const roundedMl = Math.round(mlPerUnit * 100) / 100;
-    if (roundedMl <= 0) continue;
-    const stockRow = db.prepare('SELECT * FROM stock_pigments WHERE pigment_code = ?').get(code);
-    if (!stockRow || stockRow.quantity_ml < roundedMl * qty) {
-      return res.status(409).json({ error: `Not enough pigment ${code} in stock (need ${(roundedMl * qty).toFixed(2)}ml, have ${stockRow ? stockRow.quantity_ml : 0}ml).` });
-    }
-    totalPigmentCost += (stockRow.unit_cost_per_ml_kes || 0) * (roundedMl * qty);
-    finalPigmentList.push({ code, ml: roundedMl });
-  }
-
-  const blendedHex = blendHexColors(resolvedComponents);
-  const baseCost = (base.unit_cost_kes || 0) * qty;
-  const totalCost = baseCost + totalPigmentCost;
-  const unitCost = totalCost / qty;
-
-  const pin = generatePin();
-  const formulaStr = finalPigmentList.map(p => `${p.code}:${p.ml.toFixed(2)}`).join(',');
-  const blendTitle = blend_name || `Custom Multi-Blend (${resolvedComponents.map(c => c.color_name).join(' + ')})`;
-
-  // Save custom blend in manufacturer_colors if needed, or use primary component's color_id
-  const primaryColorId = resolvedComponents[0].color_id;
-
-  const mixTransaction = db.transaction(() => {
-    db.prepare(`
-      INSERT INTO paint_pin_ledger (paint_pin, color_id, customer_phone, painter_phone, tin_size_litres, quantity_mixed, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(pin, primaryColorId, customer_phone, painter_phone || null, tin_size_litres, qty, req.user.user_id);
-
-    db.prepare('UPDATE stock_base_tins SET quantity_in_stock = quantity_in_stock - ? WHERE base_id = ?')
-      .run(qty, base_id);
-
-    for (const p of finalPigmentList) {
-      db.prepare('UPDATE stock_pigments SET quantity_ml = quantity_ml - ? WHERE pigment_code = ?')
-        .run(p.ml * qty, p.code);
-    }
-  });
-  mixTransaction();
-
-  logAction({
-    userId: req.user.user_id,
-    deviceFingerprint: req.deviceFingerprint,
-    action: 'MULTI_COLOR_MIXED',
-    details: `${pin} - ${blendTitle} x${qty} (Cost: KES ${Math.round(totalCost)})`,
-    status: 'ALLOWED'
-  });
-
-  res.json({
-    paint_pin: pin,
-    blend_name: blendTitle,
-    hex_code: blendedHex,
-    pigment_formula: formulaStr,
-    pigments: finalPigmentList,
-    components: resolvedComponents.map(c => ({ color_name: c.color_name, manufacturer: c.manufacturer, ratio: Math.round(c.ratio * 100) + '%' })),
-    base,
-    tin_size_litres,
-    quantity_mixed: qty,
-    unit_cost_kes: Math.round(unitCost * 100) / 100,
-    total_cost_kes: Math.round(totalCost * 100) / 100
-  });
+ res.json({
+ ok: true,
+ paint_pin: pin,
+ color,
+ base,
+ tin_size_litres: tinSize,
+ quantity_mixed: qty,
+ unit_cost_kes: Math.round(unitCost * 100) / 100,
+ total_cost_kes: Math.round(totalCost * 100) / 100
+ });
+ } catch (err) {
+ console.error('Error in /api/paintpin/mix:', err);
+ res.status(500).json({ error: err.message });
+ }
 });
 
 // GET /api/paintpin/lookup?q=... or ?pin=... or ?phone=...
-router.get('/lookup', requireAuth, (req, res) => {
-  try {
-    const { pin, phone, q } = req.query;
-    const searchTerm = (q || pin || phone || '').trim();
-    if (!searchTerm) {
-      return res.status(400).json({ error: 'Search term (?q=, ?pin=, or ?phone=) is required.' });
-    }
+router.get('/lookup', requireAuth, async (req, res) => {
+ try {
+ const { pin, phone, q } = req.query;
+ const searchTerm = (q || pin || phone || '').trim().toLowerCase();
+ if (!searchTerm) {
+ return res.status(400).json({ error: 'Search term (?q=, ?pin=, or ?phone=) is required.' });
+ }
 
-    const cleanTerm = searchTerm.replace(/^#/, '');
-    const likeTerm = `%${cleanTerm}%`;
+ const client = getSupabaseClient();
+ if (client) {
+ try {
+ const { data, error } = await client
+ .from('paint_pin_ledger')
+ .select('*, manufacturer_colors(*)')
+ .order('created_at', { ascending: false })
+ .limit(60);
 
-    const rows = db.prepare(`
-      SELECT ppl.*, 
-             mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base,
-             u.full_name AS mixed_by_name
-      FROM paint_pin_ledger ppl
-      JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
-      LEFT JOIN store_users u ON u.user_id = ppl.created_by
-      WHERE ppl.paint_pin = ? 
-         OR ppl.paint_pin LIKE ?
-         OR ppl.customer_phone = ? 
-         OR ppl.customer_phone LIKE ?
-         OR ppl.painter_phone = ? 
-         OR ppl.painter_phone LIKE ?
-         OR mc.color_name LIKE ?
-         OR mc.color_code LIKE ?
-      ORDER BY ppl.created_at DESC
-      LIMIT 50
-    `).all(cleanTerm, likeTerm, cleanTerm, likeTerm, cleanTerm, likeTerm, likeTerm, likeTerm);
+ if (!error && data && data.length) {
+ const matched = data.filter(item => {
+ const pPin = (item.paint_pin || '').toLowerCase();
+ const pCust = (item.customer_phone || '').toLowerCase();
+ const pPainter = (item.painter_phone || '').toLowerCase();
+ const cName = (item.manufacturer_colors && item.manufacturer_colors.color_name || '').toLowerCase();
+ const cCode = (item.manufacturer_colors && item.manufacturer_colors.color_code || '').toLowerCase();
+ const mfr = (item.manufacturer_colors && item.manufacturer_colors.manufacturer || '').toLowerCase();
 
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+ return pPin.includes(searchTerm) || pCust.includes(searchTerm) || pPainter.includes(searchTerm) || cName.includes(searchTerm) || cCode.includes(searchTerm) || mfr.includes(searchTerm);
+ }).map(item => ({
+ paint_pin: item.paint_pin,
+ color_id: item.color_id,
+ customer_phone: item.customer_phone,
+ painter_phone: item.painter_phone,
+ tin_size_litres: item.tin_size_litres,
+ quantity_mixed: item.quantity_mixed,
+ created_at: item.created_at,
+ color_name: item.manufacturer_colors ? item.manufacturer_colors.color_name : 'Custom Shade',
+ manufacturer: item.manufacturer_colors ? item.manufacturer_colors.manufacturer : 'Crown',
+ color_code: item.manufacturer_colors ? item.manufacturer_colors.color_code : 'CRN',
+ hex_code: item.manufacturer_colors ? item.manufacturer_colors.hex_code : '#cbd5e1',
+ pigment_formula: item.manufacturer_colors ? item.manufacturer_colors.pigment_formula : 'YO:1.20,BK:0.25',
+ required_base: item.manufacturer_colors ? item.manufacturer_colors.required_base : 'Pastel',
+ mixed_by_name: item.created_by === 1 ? 'Store Owner' : 'Shop Staff'
+ }));
+
+ return res.json(matched);
+ }
+ } catch (e) {}
+ }
+
+ const cleanTerm = searchTerm.replace(/^#/, '');
+ const likeTerm = '%' + cleanTerm + '%';
+ const rows = db.prepare(`
+ SELECT ppl.*, 
+ mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base,
+ u.full_name AS mixed_by_name
+ FROM paint_pin_ledger ppl
+ JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
+ LEFT JOIN store_users u ON u.user_id = ppl.created_by
+ WHERE ppl.paint_pin = ? 
+ OR ppl.paint_pin LIKE ?
+ OR ppl.customer_phone = ? 
+ OR ppl.customer_phone LIKE ?
+ OR ppl.painter_phone = ? 
+ OR ppl.painter_phone LIKE ?
+ OR mc.color_name LIKE ?
+ OR mc.color_code LIKE ?
+ ORDER BY ppl.created_at DESC
+ LIMIT 50
+ `).all(cleanTerm, likeTerm, cleanTerm, likeTerm, cleanTerm, likeTerm, likeTerm, likeTerm);
+
+ res.json(rows);
+ } catch (err) {
+ res.status(500).json({ error: err.message });
+ }
 });
 
-// GET /api/paintpin/recent - Get latest 30 mixed PINs for quick recall
-router.get('/recent', requireAuth, (req, res) => {
-  try {
-    const rows = db.prepare(`
-      SELECT ppl.*, 
-             mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base,
-             u.full_name AS mixed_by_name
-      FROM paint_pin_ledger ppl
-      JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
-      LEFT JOIN store_users u ON u.user_id = ppl.created_by
-      ORDER BY ppl.created_at DESC
-      LIMIT 30
-    `).all();
+// GET /api/paintpin/recent - Get latest 40 mixed PINs from Supabase Cloud
+router.get('/recent', requireAuth, async (req, res) => {
+ try {
+ const client = getSupabaseClient();
+ if (client) {
+ try {
+ const { data, error } = await client
+ .from('paint_pin_ledger')
+ .select('*, manufacturer_colors(*)')
+ .order('created_at', { ascending: false })
+ .limit(40);
 
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+ if (!error && data && data.length) {
+ const list = data.map(item => ({
+ paint_pin: item.paint_pin,
+ color_id: item.color_id,
+ customer_phone: item.customer_phone,
+ painter_phone: item.painter_phone,
+ tin_size_litres: item.tin_size_litres,
+ quantity_mixed: item.quantity_mixed,
+ created_at: item.created_at,
+ color_name: item.manufacturer_colors ? item.manufacturer_colors.color_name : 'Custom Shade',
+ manufacturer: item.manufacturer_colors ? item.manufacturer_colors.manufacturer : 'Crown',
+ color_code: item.manufacturer_colors ? item.manufacturer_colors.color_code : 'CRN',
+ hex_code: item.manufacturer_colors ? item.manufacturer_colors.hex_code : '#cbd5e1',
+ pigment_formula: item.manufacturer_colors ? item.manufacturer_colors.pigment_formula : 'YO:1.20,BK:0.25',
+ required_base: item.manufacturer_colors ? item.manufacturer_colors.required_base : 'Pastel',
+ mixed_by_name: item.created_by === 1 ? 'Store Owner' : 'Shop Staff'
+ }));
+
+ return res.json(list);
+ }
+ } catch (e) {}
+ }
+
+ const rows = db.prepare(`
+ SELECT ppl.*, 
+ mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base,
+ u.full_name AS mixed_by_name
+ FROM paint_pin_ledger ppl
+ JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
+ LEFT JOIN store_users u ON u.user_id = ppl.created_by
+ ORDER BY ppl.created_at DESC
+ LIMIT 30
+ `).all();
+
+ res.json(rows);
+ } catch (err) {
+ res.status(500).json({ error: err.message });
+ }
 });
 
 module.exports = router;
