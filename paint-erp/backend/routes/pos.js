@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { db } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { logAction } = require('../audit');
+const { syncToSupabase } = require('../supabaseSync');
 
 // Helper to handle invoice/checkout logic
 function processCheckout(req, res) {
@@ -103,6 +104,27 @@ function processCheckout(req, res) {
 
   const invoiceId = createInvoice();
 
+  // Real-time Supabase sync for invoice & items
+  syncToSupabase('invoices', {
+    invoice_id: Number(invoiceId),
+    created_by: req.user.user_id,
+    customer_phone: customer_phone || null,
+    payment_method: dbPaymentMethod,
+    total_kes: total,
+    status: initialStatus
+  });
+
+  const supabaseItems = rawItems.map(item => ({
+    invoice_id: Number(invoiceId),
+    description: item.description || 'Item',
+    paint_pin: item.paint_pin || null,
+    product_id: item.product_id ? Number(item.product_id) : null,
+    quantity: Number(item.quantity) || 1,
+    unit_price_kes: Number(item.unit_price_kes) || 0,
+    line_cost_kes: Number(item.line_cost_kes) || 0
+  }));
+  syncToSupabase('invoice_items', supabaseItems);
+
   logAction({
     userId: req.user.user_id,
     deviceFingerprint: req.deviceFingerprint,
@@ -160,38 +182,170 @@ router.get('/invoices', requireAuth, (req, res) => {
   }
 });
 
+const { sendStkPush, queryStkStatus, handleStkCallback, handleC2BConfirmation, getDarajaConfig } = require('../mpesa');
+
 // POST /api/pos/mpesa/stk-push
-// body: { invoice_id, phone_number, amount_kes }
-router.post('/mpesa/stk-push', requireAuth, (req, res) => {
-  const { invoice_id, phone_number, amount_kes } = req.body;
-  if (!invoice_id || !phone_number || !amount_kes) {
-    return res.status(400).json({ error: 'invoice_id, phone_number and amount_kes are required.' });
+// body: { invoice_id, phone_number, amount_kes, description }
+router.post('/mpesa/stk-push', requireAuth, async (req, res) => {
+  const { invoice_id, phone_number, amount_kes, description } = req.body;
+  if (!phone_number || !amount_kes) {
+    return res.status(400).json({ error: 'phone_number and amount_kes are required.' });
   }
 
-  const checkoutRequestId = `ws_CO_${crypto.randomBytes(8).toString('hex')}`;
+  try {
+    const result = await sendStkPush({
+      phone: phone_number,
+      amount: amount_kes,
+      invoiceId: invoice_id,
+      description: description || `Paint POS #${invoice_id || ''}`,
+      userId: req.user.user_id,
+      deviceFingerprint: req.deviceFingerprint
+    });
 
-  db.prepare(`
-    INSERT INTO mpesa_payments (checkout_request_id, phone_number, amount_kes, payment_status, invoice_id)
-    VALUES (?, ?, ?, 'Pending', ?)
-  `).run(checkoutRequestId, phone_number, amount_kes, invoice_id);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/pos/mpesa/status/:checkoutRequestId
+router.get('/mpesa/status/:checkoutRequestId', async (req, res) => {
+  try {
+    const status = await queryStkStatus({ checkoutRequestId: req.params.checkoutRequestId });
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/pos/mpesa/verify-code
+// Cashier manually validates customer's M-Pesa transaction code
+router.post('/mpesa/verify-code', requireAuth, (req, res) => {
+  const { receipt_code, amount_kes, invoice_id, phone_number } = req.body;
+  if (!receipt_code || !amount_kes) {
+    return res.status(400).json({ error: 'receipt_code and amount_kes are required.' });
+  }
+
+  const cleanCode = String(receipt_code).trim().toUpperCase();
+  const amount = Number(amount_kes);
+
+  // Check if code is already registered in DB
+  let existing = db.prepare('SELECT * FROM mpesa_payments WHERE mpesa_receipt_code = ?').get(cleanCode);
+
+  if (existing) {
+    if (existing.payment_status === 'Completed') {
+      if (existing.invoice_id && existing.invoice_id !== Number(invoice_id)) {
+        return res.status(409).json({ error: `This M-Pesa code (${cleanCode}) was already used for Invoice #${existing.invoice_id}.` });
+      }
+      if (invoice_id) {
+        db.prepare('UPDATE mpesa_payments SET invoice_id = ? WHERE transaction_id = ?').run(invoice_id, existing.transaction_id);
+        db.prepare("UPDATE invoices SET status = 'Paid' WHERE invoice_id = ?").run(invoice_id);
+      }
+      return res.json({ ok: true, message: 'Receipt code verified successfully.', payment: existing });
+    }
+  }
+
+  // If not yet recorded, insert verified manual transaction
+  const phone = phone_number ? String(phone_number).trim() : 'Walk-in';
+  const info = db.prepare(`
+    INSERT INTO mpesa_payments (
+      mpesa_receipt_code, phone_number, amount_kes, payment_status, 
+      transaction_type, result_code, result_desc, invoice_id
+    ) VALUES (?, ?, ?, 'Completed', 'MANUAL_CODE', 0, 'Cashier Verified M-Pesa Code', ?)
+  `).run(cleanCode, phone, amount, invoice_id || null);
+
+  if (invoice_id) {
+    db.prepare("UPDATE invoices SET status = 'Paid' WHERE invoice_id = ?").run(invoice_id);
+  }
+
+  db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(amount);
+
+  syncToSupabase('mpesa_payments', {
+    transaction_id: info.lastInsertRowid,
+    mpesa_receipt_code: cleanCode,
+    phone_number: phone,
+    amount_kes: amount,
+    payment_status: 'Completed',
+    transaction_type: 'MANUAL_CODE',
+    invoice_id: invoice_id || null
+  });
 
   logAction({
     userId: req.user.user_id,
     deviceFingerprint: req.deviceFingerprint,
-    action: 'MPESA_STK_PUSH_SENT',
-    details: `Checkout ${checkoutRequestId} for invoice #${invoice_id}, KES ${amount_kes}`,
+    action: 'MPESA_CODE_VERIFIED',
+    details: `M-Pesa Code ${cleanCode} verified for KES ${amount} (Invoice #${invoice_id || 'N/A'})`,
     status: 'ALLOWED'
   });
 
+  res.json({ ok: true, mpesa_receipt_code: cleanCode, amount_kes: amount, payment_status: 'Completed' });
+});
+
+// POST /api/pos/mpesa/callback  - webhook Safaricom calls when payment clears
+router.post('/mpesa/callback', (req, res) => {
+  const result = handleStkCallback(req.body);
+  res.json({ ResultCode: 0, ResultDesc: 'Callback processed successfully', result });
+});
+
+// POST /api/pos/mpesa/c2b/confirmation & validation
+router.post('/mpesa/c2b/confirmation', (req, res) => {
+  const result = handleC2BConfirmation(req.body);
+  res.json(result);
+});
+
+router.post('/mpesa/c2b/validation', (req, res) => {
+  res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+});
+
+// GET /api/pos/mpesa/config (Read M-Pesa credentials - Owner only)
+router.get('/mpesa/config', requireAuth, (req, res) => {
+  const config = getDarajaConfig();
+  // Mask consumer secret for security
+  const maskedSecret = config.consumerSecret ? `${config.consumerSecret.substring(0, 4)}••••••••${config.consumerSecret.substring(config.consumerSecret.length - 4)}` : '';
   res.json({
-    checkout_request_id: checkoutRequestId,
-    invoice_id,
-    message: 'STK push sent (mocked). Awaiting customer PIN entry.'
+    env: config.env,
+    shortcode: config.shortcode,
+    till_number: config.tillNumber,
+    consumer_key: config.consumerKey,
+    consumer_secret: maskedSecret,
+    callback_url: config.callbackUrl,
+    is_active: true
   });
 });
 
+// POST /api/pos/mpesa/config (Update M-Pesa credentials - Owner only)
+router.post('/mpesa/config', requireAuth, (req, res) => {
+  if (req.user.system_role !== 'Owner') {
+    return res.status(403).json({ error: 'Only the store owner can modify M-Pesa Daraja settings.' });
+  }
+
+  const { env, consumer_key, consumer_secret, passkey, shortcode, till_number, callback_url } = req.body;
+
+  db.prepare(`
+    UPDATE mpesa_config
+    SET env = COALESCE(?, env),
+        consumer_key = COALESCE(?, consumer_key),
+        consumer_secret = CASE WHEN ? != '' AND ? NOT LIKE '%•••%' THEN ? ELSE consumer_secret END,
+        passkey = COALESCE(?, passkey),
+        shortcode = COALESCE(?, shortcode),
+        till_number = COALESCE(?, till_number),
+        callback_url = COALESCE(?, callback_url),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE config_id = 1
+  `).run(env || null, consumer_key || null, consumer_secret || '', consumer_secret || '', consumer_secret || null, passkey || null, shortcode || null, till_number || null, callback_url || null);
+
+  logAction({
+    userId: req.user.user_id,
+    deviceFingerprint: req.deviceFingerprint,
+    action: 'MPESA_CONFIG_UPDATED',
+    details: `Updated M-Pesa Daraja settings: env=${env || 'unchanged'}, shortcode=${shortcode || 'unchanged'}`,
+    status: 'ALLOWED'
+  });
+
+  res.json({ ok: true, message: 'M-Pesa Daraja configuration updated successfully.' });
+});
+
 // POST /api/pos/mpesa/simulate-callback  - helper for UI/dev to simulate customer entering PIN
-// body: { checkout_request_id, invoice_id?, success: true|false }
 router.post('/mpesa/simulate-callback', (req, res) => {
   let { checkout_request_id, invoice_id, success } = req.body;
   if (success === undefined) success = true;
@@ -207,7 +361,7 @@ router.post('/mpesa/simulate-callback', (req, res) => {
     return res.status(404).json({ error: 'Payment record not found.' });
   }
 
-  const receiptCode = success ? `RSH${crypto.randomBytes(4).toString('hex').toUpperCase()}` : null;
+  const receiptCode = success ? (payment.mpesa_receipt_code || `RSH${crypto.randomBytes(4).toString('hex').toUpperCase()}`) : null;
   const newStatus = success ? 'Completed' : 'Failed';
 
   db.prepare(`
@@ -235,35 +389,6 @@ router.post('/mpesa/simulate-callback', (req, res) => {
     mpesa_receipt_code: receiptCode,
     invoice_status: success ? 'Paid' : 'Failed'
   });
-});
-
-// POST /api/pos/mpesa/callback  - webhook Safaricom/Co-op Bank calls when payment clears
-router.post('/mpesa/callback', (req, res) => {
-  const { checkout_request_id, mpesa_receipt_code, bank_reference, success } = req.body;
-  const payment = db.prepare('SELECT * FROM mpesa_payments WHERE checkout_request_id = ?').get(checkout_request_id);
-  if (!payment) return res.status(404).json({ error: 'Unknown checkout_request_id.' });
-
-  const newStatus = success ? 'Completed' : 'Failed';
-  db.prepare(`
-    UPDATE mpesa_payments
-    SET payment_status = ?, mpesa_receipt_code = ?, bank_reference = ?
-    WHERE transaction_id = ?
-  `).run(newStatus, mpesa_receipt_code || null, bank_reference || null, payment.transaction_id);
-
-  if (success && payment.invoice_id) {
-    db.prepare('UPDATE invoices SET status = ? WHERE invoice_id = ?').run('Paid', payment.invoice_id);
-    db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(payment.amount_kes);
-  }
-
-  logAction({
-    userId: null,
-    deviceFingerprint: 'mpesa-webhook',
-    action: 'MPESA_CALLBACK',
-    details: `Checkout ${checkout_request_id} -> ${newStatus}`,
-    status: 'ALLOWED'
-  });
-
-  res.json({ ok: true, invoice_status: success ? 'Paid' : 'Failed' });
 });
 
 // GET /api/pos/invoice/:id

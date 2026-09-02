@@ -36,17 +36,35 @@ CREATE TABLE IF NOT EXISTS paint_pin_ledger (
     created_by      INTEGER REFERENCES store_users(user_id)
 );
 
--- 4. MPESA / BANK TRANSACTION LOG
+-- 4. MPESA / BANK TRANSACTION LOG & CONFIGURATION
+CREATE TABLE IF NOT EXISTS mpesa_config (
+    config_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    env             TEXT NOT NULL DEFAULT 'sandbox',   -- 'sandbox' or 'production'
+    consumer_key    TEXT,
+    consumer_secret TEXT,
+    passkey         TEXT,
+    shortcode       TEXT NOT NULL DEFAULT '174379',
+    till_number     TEXT,
+    callback_url    TEXT,
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS mpesa_payments (
     transaction_id      INTEGER PRIMARY KEY AUTOINCREMENT,
     mpesa_receipt_code  TEXT UNIQUE,
     checkout_request_id TEXT UNIQUE,
+    merchant_request_id TEXT,
     phone_number        TEXT NOT NULL,
     amount_kes          REAL NOT NULL,
-    payment_status       TEXT CHECK (payment_status IN ('Pending','Completed','Failed')) NOT NULL,
-    bank_reference       TEXT,
-    invoice_id            INTEGER,
-    timestamp             TEXT DEFAULT CURRENT_TIMESTAMP
+    payment_status      TEXT CHECK (payment_status IN ('Pending','Completed','Failed','Cancelled')) NOT NULL,
+    transaction_type    TEXT DEFAULT 'STK_PUSH',         -- 'STK_PUSH', 'C2B_PAYBILL', 'C2B_TILL'
+    result_code         INTEGER,
+    result_desc         TEXT,
+    bank_reference      TEXT,
+    invoice_id          INTEGER,
+    raw_payload         TEXT,
+    timestamp           TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 5. STOCK: BASE TINS (paint bases held in litres/tins)

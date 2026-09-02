@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { requireAuth, requireOwner, verifySecurityPin } = require('../middleware/auth');
 const { logAction } = require('../audit');
+const { syncToSupabase, updateSupabase, deleteFromSupabase } = require('../supabaseSync');
 const { hardwareStockAccessories } = require('../seed/kenyan_master_fandecks');
 
 // GET /api/stock/valuation - Real-time valuation of all hardware, bases, and pigments
@@ -198,6 +199,14 @@ router.post('/restock', requireAuth, (req, res) => {
 
     restockTx();
 
+    if (item_type === 'product' || item_type === 'hardware') {
+      updateSupabase('products', { product_id: item_id }, { quantity_in_stock: newTotalStock, ...(costPerUnit > 0 ? { unit_cost_kes: costPerUnit } : {}) });
+    } else if (item_type === 'base' || item_type === 'base_tin') {
+      updateSupabase('stock_base_tins', { base_id: item_id }, { quantity_in_stock: newTotalStock, ...(costPerUnit > 0 ? { unit_cost_kes: costPerUnit } : {}) });
+    } else if (item_type === 'pigment') {
+      updateSupabase('stock_pigments', { pigment_id: item_id }, { quantity_ml: newTotalStock, ...(costPerUnit > 0 ? { unit_cost_per_ml_kes: costPerUnit } : {}) });
+    }
+
     logAction({
       userId: req.user.user_id,
       deviceFingerprint: req.headers['x-device-fingerprint'] || 'terminal',
@@ -250,6 +259,14 @@ router.post('/adjust', requireAuth, (req, res) => {
       return res.status(400).json({ error: 'Unknown item type for adjustment.' });
     }
 
+    if (item_type === 'product' || item_type === 'hardware') {
+      updateSupabase('products', { product_id: item_id }, { quantity_in_stock: newQty });
+    } else if (item_type === 'base' || item_type === 'base_tin') {
+      updateSupabase('stock_base_tins', { base_id: item_id }, { quantity_in_stock: newQty });
+    } else if (item_type === 'pigment') {
+      updateSupabase('stock_pigments', { pigment_id: item_id }, { quantity_ml: newQty });
+    }
+
     logAction({
       userId: req.user.user_id,
       deviceFingerprint: req.headers['x-device-fingerprint'] || 'terminal',
@@ -283,6 +300,17 @@ router.post('/products', requireAuth, (req, res) => {
       Number(low_stock_threshold || 5)
     );
 
+    const prodId = Number(result.lastInsertRowid);
+    syncToSupabase('products', {
+      product_id: prodId,
+      product_name: product_name.trim(),
+      sku: finalSku,
+      unit_price_kes: Number(unit_price_kes || 0),
+      unit_cost_kes: Number(unit_cost_kes || 0),
+      quantity_in_stock: Number(quantity_in_stock || 0),
+      low_stock_threshold: Number(low_stock_threshold || 5)
+    });
+
     logAction({
       userId: req.user.user_id,
       deviceFingerprint: req.headers['x-device-fingerprint'] || 'terminal',
@@ -291,7 +319,7 @@ router.post('/products', requireAuth, (req, res) => {
       status: 'ALLOWED'
     });
 
-    res.json({ ok: true, message: `Product ${product_name} added to inventory successfully.`, product_id: Number(result.lastInsertRowid) });
+    res.json({ ok: true, message: `Product ${product_name} added to inventory successfully.`, product_id: prodId });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -316,6 +344,17 @@ router.post('/bases', requireAuth, (req, res) => {
       Number(quantity_in_stock || 0),
       Number(low_stock_threshold || 5)
     );
+
+    const baseId = Number(result.lastInsertRowid);
+    syncToSupabase('stock_base_tins', {
+      base_id: baseId,
+      manufacturer: manufacturer.trim(),
+      base_name: base_name.trim(),
+      tin_size_litres: Number(tin_size_litres),
+      unit_cost_kes: Number(unit_cost_kes || 0),
+      quantity_in_stock: Number(quantity_in_stock || 0),
+      low_stock_threshold: Number(low_stock_threshold || 5)
+    });
 
     logAction({
       userId: req.user.user_id,

@@ -1402,25 +1402,8 @@ select {
   color: var(--brand-gold-dark);
 }
 
-@media print {
-  body * {
-    visibility: hidden;
-  }
-  .proforma-sheet, .proforma-sheet *, .proforma-pdf-document, .proforma-pdf-document *, .bucket-lid-sticker, .bucket-lid-sticker * {
-    visibility: visible;
-  }
-  .proforma-sheet, .proforma-pdf-document, .bucket-lid-sticker {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    border: none;
-    box-shadow: none;
-  }
-  .sidebar, .topbar-header, .btn, .btn-close-modal, .modal-header-bar {
-    display: none !important;
-  }
-}
+/* Print styles consolidated at bottom of stylesheet */
+
 
 
 /* ==========================================================================
@@ -2852,25 +2835,72 @@ main#view-container {
 @media print {
   body {
     background: white !important;
-    color: black !important;
+    color: #0f172a !important;
     overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  aside.sidebar, .topbar-header, .btn, button, .online-pill, #toast, .modal-backdrop, #modal-container {
+  
+  /* Hide UI chrome */
+  aside.sidebar, .topbar-header, .btn, button, .online-pill, #toast, .modal-backdrop, .modal-header-bar, .btn-close-modal, #btn-copy-pin {
     display: none !important;
   }
-  .main-viewport {
+
+  .main-viewport, main#view-container {
     width: 100% !important;
     height: auto !important;
     overflow: visible !important;
     padding: 0 !important;
+    margin: 0 !important;
   }
-  main#view-container {
+
+  /* Modal container styling when printing */
+  #modal-container {
+    position: static !important;
+    display: block !important;
+  }
+  .modal-overlay {
+    position: static !important;
+    background: transparent !important;
     padding: 0 !important;
+    display: block !important;
   }
-  .card-panel, .report-section-card {
+  .modal-container-card {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Specific Sticker Card Print Layout */
+  #printable-lid-sticker {
+    display: block !important;
+    visibility: visible !important;
+    border: 2.5px solid #0f172a !important;
+    border-radius: 12px !important;
+    padding: 1.25rem !important;
+    max-width: 440px !important;
+    margin: 20px auto !important;
+    background: white !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  #printable-lid-sticker * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .card-panel, .report-section-card, .proforma-sheet, .proforma-pdf-document {
     box-shadow: none !important;
     border: 1px solid #ccc !important;
     page-break-inside: avoid;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 
@@ -3422,3 +3452,98 @@ main#view-container {
   border-color: #fca5a5 !important;
   color: #dc2626 !important;
 }
+
+/* ==========================================================================
+   PAINT PIN RECALL & REPEAT MIX STYLES
+   ========================================================================== */
+.pin-recall-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  border-color: #cbd5e1 !important;
+}
+
+.btn-filter {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  border-radius: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-filter:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-filter.active {
+  background: #0f172a !important;
+  color: #f59e0b !important;
+  border-color: #0f172a !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* ==========================================================================
+   SAFARICOM DARAJA M-PESA POS STYLES
+   ========================================================================== */
+.mpesa-tab-btn {
+  flex: 1;
+  padding: 0.85rem 1rem;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: #334155;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.mpesa-tab-btn:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+.mpesa-tab-btn.active {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  color: #ffffff !important;
+  border-color: #047857 !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+}
+
+.mpesa-radar-pulse {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #d1fae5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  position: relative;
+  box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.4);
+  animation: mpesaPulse 1.8s infinite;
+}
+
+@keyframes mpesaPulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 16px rgba(5, 150, 105, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);
+  }
+}
+
+

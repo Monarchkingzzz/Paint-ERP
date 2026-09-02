@@ -3,18 +3,61 @@
 // High-End Retail, Tinting, Real-time Cashbook, Reports, Suppliers & Credit
 // ==========================================================================
 
+function localStorage_getToken() {
+  try {
+    return localStorage.getItem('paint_erp_token') || sessionStorage.getItem('paint_erp_token') || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem('paint_erp_user') || sessionStorage.getItem('paint_erp_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function setToken(token) {
+  state.token = token;
+  try {
+    if (token) {
+      localStorage.setItem('paint_erp_token', token);
+      sessionStorage.setItem('paint_erp_token', token);
+    } else {
+      localStorage.removeItem('paint_erp_token');
+      sessionStorage.removeItem('paint_erp_token');
+    }
+  } catch (e) {}
+}
+
+function saveUser(user) {
+  state.user = user;
+  try {
+    if (user) {
+      localStorage.setItem('paint_erp_user', JSON.stringify(user));
+      sessionStorage.setItem('paint_erp_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('paint_erp_user');
+      sessionStorage.removeItem('paint_erp_user');
+    }
+  } catch (e) {}
+}
+
 function getInitialActiveView() {
   const hash = (window.location.hash || '').replace('#', '').trim();
   const validViews = ['dashboard', 'mix', 'pos', 'quotes', 'stock', 'sales', 'reports', 'cashbook', 'suppliers', 'credit', 'employees', 'audit'];
   if (hash && validViews.includes(hash)) return hash;
-  const saved = sessionStorage.getItem('paint_erp_active_view');
+  const saved = localStorage.getItem('paint_erp_active_view') || sessionStorage.getItem('paint_erp_active_view');
   if (saved && validViews.includes(saved)) return saved;
   return 'dashboard';
 }
 
 const state = {
   token: localStorage_getToken(),
-  user: null,
+  user: getStoredUser(),
   activeView: getInitialActiveView(),
   cart: [],
   inventoryProducts: [],
@@ -77,24 +120,18 @@ const Icons = {
   phone: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`,
   lock: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   check: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`,
-  bell: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`
+  bell: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`,
+  pinLookup: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v6M8 11h6"/></svg>`
 };
 
-function localStorage_getToken() {
-  return sessionStorage.getItem('paint_erp_token');
-}
-
-function setToken(token) {
-  state.token = token;
-  if (token) sessionStorage.setItem('paint_erp_token', token);
-  else sessionStorage.removeItem('paint_erp_token');
-}
-
 function getDeviceFingerprint() {
-  let fp = sessionStorage.getItem('device_fp');
+  let fp = localStorage.getItem('device_fp') || sessionStorage.getItem('device_fp');
   if (!fp) {
     fp = `${navigator.platform || 'device'}-${Math.random().toString(36).slice(2, 8)}`;
-    sessionStorage.setItem('device_fp', fp);
+    try {
+      localStorage.setItem('device_fp', fp);
+      sessionStorage.setItem('device_fp', fp);
+    } catch (e) {}
   }
   return fp;
 }
@@ -201,10 +238,9 @@ async function login(phone, password) {
       body: JSON.stringify({ phone_number: phone, password })
     });
     setToken(data.token);
-    state.user = data.user;
-    sessionStorage.setItem('paint_erp_user', JSON.stringify(data.user));
+    saveUser(data.user);
     renderApp();
-    toast(`Welcome, ${data.user.full_name}! Signed in as ${data.user.role}.`);
+    toast(`Welcome, ${data.user.full_name}! Signed in as ${data.user.role || data.user.system_role}.`);
     checkStockAlerts();
   } catch (err) {
     toast(err.message, true);
@@ -214,8 +250,7 @@ async function login(phone, password) {
 async function logout() {
   try { await apiFetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
   setToken(null);
-  state.user = null;
-  sessionStorage.removeItem('paint_erp_user');
+  saveUser(null);
   renderApp();
   toast('Signed out successfully.');
 }
@@ -525,6 +560,7 @@ function getPageTitle(view) {
   switch (view) {
     case 'dashboard': return '📊 Executive Store Dashboard (Real-Time)';
     case 'mix': return '🎨 Custom Paint Tinting & Formulation PINs';
+    case 'pin-lookup': return '🔍 Paint PIN Customer Recall & Repeat Formulation';
     case 'pos': return '🛒 Point of Sale Terminal & Checkout';
     case 'quotes': return '📋 Pro-Forma Quotations (14-Day Price Lock)';
     case 'stock': return '📦 Smart Inventory & Stock Quantities';
@@ -568,6 +604,10 @@ function renderShell() {
             <button data-view="mix" class="${state.activeView === 'mix' ? 'active' : ''}">
               <span class="nav-icon">${Icons.paint}</span>
               <span class="nav-label">Mix Paint &amp; Tinting</span>
+            </button>
+            <button data-view="pin-lookup" class="${state.activeView === 'pin-lookup' ? 'active' : ''}">
+              <span class="nav-icon">${Icons.pinLookup}</span>
+              <span class="nav-label">Paint PIN Recall &amp; Repeat</span>
             </button>
             <button data-view="pos" class="${state.activeView === 'pos' ? 'active' : ''}">
               <span class="nav-icon">${Icons.pos}</span>
@@ -653,6 +693,11 @@ function renderShell() {
               <span class="pulse-dot"></span>
               <span id="online-text">Live Sync (Port 4000)</span>
             </div>
+            ${isOwner ? `
+              <button class="btn btn-secondary btn-sm" onclick="showMpesaConfigModal()" style="display:inline-flex; align-items:center; gap:0.4rem; background:#ecfdf5; border-color:#a7f3d0; color:#065f46; font-weight:700;">
+                📱 Daraja M-Pesa Setup
+              </button>
+            ` : ''}
             <button class="btn btn-secondary btn-sm" onclick="showBulkImportModal()" style="display:inline-flex; align-items:center; gap:0.4rem; background:#fffbeb; border-color:#fde68a; color:#92400e;">
               📥 Fandecks &amp; Catalog (1,000+)
             </button>
@@ -700,6 +745,7 @@ function showView(viewName) {
   switch (viewName) {
     case 'dashboard': renderDashboardView(container); break;
     case 'mix': renderMixView(container); break;
+    case 'pin-lookup': renderPinLookupView(container); break;
     case 'pos': renderPosView(container); break;
     case 'quotes': renderQuotesView(container); break;
     case 'stock': renderStockView(container); break;
@@ -717,7 +763,7 @@ window.showView = showView;
 
 window.addEventListener('hashchange', () => {
   const hash = (window.location.hash || '').replace('#', '').trim();
-  const validViews = ['dashboard', 'mix', 'pos', 'quotes', 'stock', 'sales', 'reports', 'cashbook', 'suppliers', 'credit', 'employees', 'audit'];
+  const validViews = ['dashboard', 'mix', 'pin-lookup', 'pos', 'quotes', 'stock', 'sales', 'reports', 'cashbook', 'suppliers', 'credit', 'employees', 'audit'];
   if (hash && validViews.includes(hash) && hash !== state.activeView) {
     showView(hash);
   }
@@ -1087,6 +1133,9 @@ async function renderMixView(container) {
           </button>
           <button id="mode-btn-multi" class="blend-mode-btn ${mixMode === 'multi' ? 'active' : ''}">
             🎨 Multi-Color Blend Studio (2+ Shades)
+          </button>
+          <button id="mode-btn-recall" class="blend-mode-btn" onclick="showView('pin-lookup')">
+            🔍 Recall Customer PIN / Re-Mix
           </button>
         </div>
       </div>
@@ -2109,6 +2158,201 @@ function showCustomColorModal(prefillName = '') {
 
 
 // ==========================================================================
+// DEDICATED CAN LID STICKER PRINTER (ISOLATED CLEAN PRINT VIEW)
+// ==========================================================================
+function printLidSticker(data) {
+  const { pin, colorName, manufacturer, baseName, tinSize, formula, phone, date } = data;
+  const formulaObj = typeof formula === 'string' ? parsePigmentFormula(formula) : (formula || {});
+
+  // Create or reuse an isolated printable iframe so nothing from background screen leaks
+  let iframe = document.getElementById('sticker-print-frame');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'sticker-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Can Lid Sticker - ${escapeHtml(pin)}</title>
+      <style>
+        @page {
+          size: auto;
+          margin: 6mm;
+        }
+        * {
+          box-sizing: border-box;
+          margin: 0;
+          padding: 0;
+        }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+          background: #ffffff;
+          color: #0f172a;
+          padding: 8px;
+          display: flex;
+          justify-content: center;
+        }
+        .lid-label {
+          width: 100%;
+          max-width: 360px;
+          border: 2.5px solid #0f172a;
+          border-radius: 12px;
+          padding: 14px 16px;
+          background: #ffffff;
+        }
+        .top-brand-bar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 2px solid #0f172a;
+          padding-bottom: 6px;
+          margin-bottom: 8px;
+        }
+        .store-tag {
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          color: #475569;
+        }
+        .sticker-badge {
+          font-size: 9px;
+          font-weight: 800;
+          text-transform: uppercase;
+          background: #0f172a;
+          color: #ffffff;
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+        .shade-title {
+          font-size: 18px;
+          font-weight: 900;
+          color: #0f172a;
+          line-height: 1.2;
+          margin-bottom: 2px;
+        }
+        .shade-meta {
+          font-size: 12px;
+          font-weight: 700;
+          color: #0284c7;
+          margin-bottom: 8px;
+        }
+        .pin-box {
+          background: #f8fafc;
+          border: 1.5px solid #0f172a;
+          border-radius: 8px;
+          padding: 6px 10px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        .pin-label {
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          color: #64748b;
+        }
+        .pin-code {
+          font-family: monospace;
+          font-size: 15px;
+          font-weight: 900;
+          color: #0f172a;
+          letter-spacing: 0.5px;
+        }
+        .formula-section {
+          background: #f8fafc;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          padding: 8px 10px;
+          margin-bottom: 8px;
+        }
+        .formula-header {
+          font-size: 9px;
+          font-weight: 800;
+          text-transform: uppercase;
+          color: #475569;
+          margin-bottom: 6px;
+          letter-spacing: 0.5px;
+        }
+        .formula-grid {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+        }
+        .pigment-chip {
+          background: #ffffff;
+          border: 1px solid #94a3b8;
+          border-radius: 4px;
+          padding: 2px 6px;
+          font-size: 11px;
+          font-weight: 800;
+          color: #0f172a;
+          font-family: monospace;
+        }
+        .footer-info {
+          display: flex;
+          justify-content: space-between;
+          font-size: 10px;
+          color: #475569;
+          font-weight: 600;
+          border-top: 1px dashed #cbd5e1;
+          padding-top: 6px;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="lid-label">
+        <div class="top-brand-bar">
+          <span class="store-tag">🎨 Factory Can Lid Label</span>
+          <span class="sticker-badge">Repeat Mix Recipe</span>
+        </div>
+        <div class="shade-title">${escapeHtml(colorName)}</div>
+        <div class="shade-meta">${escapeHtml(manufacturer)} · ${escapeHtml(baseName)} (${tinSize}L Tin)</div>
+
+        <div class="pin-box">
+          <span class="pin-label">Paint Recall PIN:</span>
+          <span class="pin-code">${escapeHtml(pin)}</span>
+        </div>
+
+        <div class="formula-section">
+          <div class="formula-header">🧪 Dispensation Droplets (${tinSize}L Tin):</div>
+          <div class="formula-grid">
+            ${Object.keys(formulaObj).length ? Object.entries(formulaObj).map(([code, ml]) => `
+              <div class="pigment-chip">${escapeHtml(code)}: ${ml} ml</div>
+            `).join('') : '<div class="pigment-chip">Factory Standard Formulation</div>'}
+          </div>
+        </div>
+
+        <div class="footer-info">
+          <div>Client: <strong>${escapeHtml(phone || 'Walk-in')}</strong></div>
+          <div>Date: <strong>${escapeHtml(date || new Date().toLocaleDateString('en-KE'))}</strong></div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+  doc.close();
+
+  // Trigger print cleanly on iframe window
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  }, 250);
+}
+
+// ==========================================================================
 // CAN LID STICKER & TINTING FORMULATION PIN MODAL
 // ==========================================================================
 function showLidStickerModal(data) {
@@ -2211,11 +2455,11 @@ function showLidStickerModal(data) {
     });
   }
 
-  // Attach Print Handler
+  // Attach Print Handler using isolated printLidSticker
   const printBtn = document.getElementById('btn-print-lid-sticker');
   if (printBtn) {
     printBtn.addEventListener('click', () => {
-      window.print();
+      printLidSticker(data);
     });
   }
 
@@ -2229,6 +2473,975 @@ function showLidStickerModal(data) {
   }
 }
 
+// ==========================================================================
+// SAFARICOM DARAJA M-PESA CHECKOUT MODAL (STK PUSH & PAYBILL VERIFICATION)
+// ==========================================================================
+function showMpesaCheckoutModal(options) {
+  const modal = document.getElementById('modal-container');
+  if (!modal) return;
+
+  const { customerPhone, grandTotal, items, onComplete } = options;
+  let activeTab = 'stk'; // 'stk' or 'c2b'
+  let pollingTimer = null;
+  let countdownTimer = null;
+  let secondsRemaining = 60;
+  let currentCheckoutId = null;
+
+  function renderModalContent() {
+    modal.innerHTML = `
+      <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
+        <div class="modal-container-card" style="max-width: 500px; width: 100%; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); background: white;">
+          
+          <!-- Top M-Pesa Header -->
+          <div style="background: linear-gradient(135deg, #065f46 0%, #047857 100%); color: white; padding: 1.1rem 1.35rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #34d399;">
+            <div>
+              <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: #a7f3d0; letter-spacing: 0.8px;">
+                🟢 Safaricom Daraja Direct Gateway
+              </div>
+              <h3 style="margin: 2px 0 0; font-size: 1.25rem; font-weight: 900; color: white;">
+                📱 Lipa Na M-Pesa Checkout
+              </h3>
+            </div>
+            <button class="btn-close-modal" style="color: white; background: rgba(255,255,255,0.15); border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;" id="btn-close-mpesa-modal">✕</button>
+          </div>
+
+          <!-- Total Payable Amount Banner -->
+          <div style="background: #ecfdf5; border-bottom: 1px solid #d1fae5; padding: 0.85rem 1.35rem; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.84rem; font-weight: 700; color: #065f46;">Amount to Pay:</span>
+            <span style="font-size: 1.35rem; font-weight: 900; color: #047857; font-family: var(--font-mono);">KES ${grandTotal.toLocaleString()}</span>
+          </div>
+
+          <!-- Tab Selector Bar -->
+          <div style="padding: 1rem 1.35rem 0.5rem; display: flex; gap: 0.6rem;">
+            <button type="button" class="mpesa-tab-btn ${activeTab === 'stk' ? 'active' : ''}" id="tab-btn-stk">
+              <span>📲</span> STK PIN Prompt (Instant)
+            </button>
+            <button type="button" class="mpesa-tab-btn ${activeTab === 'c2b' ? 'active' : ''}" id="tab-btn-c2b">
+              <span>🧾</span> Paybill / Till Verification
+            </button>
+          </div>
+
+          <!-- Modal Body Dynamic Tab Container -->
+          <div style="padding: 1rem 1.35rem 1.35rem;" id="mpesa-tab-body">
+            ${activeTab === 'stk' ? renderStkTabHtml() : renderC2bTabHtml()}
+          </div>
+        </div>
+      </div>
+    `;
+
+    attachModalHandlers();
+  }
+
+  function renderStkTabHtml() {
+    return `
+      <div id="stk-form-container">
+        <p style="font-size: 0.86rem; color: #475569; margin: 0 0 1.15rem; line-height: 1.45;">
+          Enter customer phone. An instant <strong>M-Pesa PIN prompt</strong> will pop up directly on their Safaricom phone.
+        </p>
+
+        <div class="form-group" style="margin-bottom: 1.35rem;">
+          <label style="font-size: 0.84rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.45rem; display: block;">
+            Customer Safaricom Phone Number
+          </label>
+          <div style="display: flex; align-items: stretch; width: 100%; border: 2px solid #059669; border-radius: 12px; overflow: hidden; background: #ffffff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.12);">
+            <div style="background: #ecfdf5; border-right: 2px solid #a7f3d0; padding: 0.85rem 1rem; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #065f46; font-size: 1.05rem; gap: 5px; user-select: none;">
+              <span style="font-size: 1.15rem;">🇰🇪</span>
+              <span>+254</span>
+            </div>
+            <input 
+              type="tel" 
+              id="mpesa-stk-phone" 
+              placeholder="712 345 678" 
+              value="${formatPhoneForInput(customerPhone)}" 
+              style="flex: 1; border: none !important; outline: none !important; padding: 0.85rem 1.1rem !important; font-size: 1.25rem !important; font-weight: 800 !important; color: #0f172a !important; font-family: var(--font-mono) !important; letter-spacing: 1px !important; width: 100% !important; background: transparent !important;" 
+              autofocus
+            />
+          </div>
+          <small style="color: #64748b; font-size: 0.78rem; margin-top: 6px; display: block; font-weight: 600;">
+            Enter 9-digit mobile number (e.g. <strong>712345678</strong> or <strong>0712345678</strong>).
+          </small>
+        </div>
+
+        <button type="button" id="btn-send-stk-push" class="btn btn-block btn-lg" style="background: linear-gradient(135deg, #059669 0%, #047857 100%); border: none; color: #ffffff !important; font-weight: 900; font-size: 1.05rem; padding: 0.95rem; border-radius: 10px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+          <span style="font-size: 1.2rem;">🚀</span>
+          <span style="color: #ffffff !important; font-weight: 900;">Send M-Pesa PIN Prompt (KES ${grandTotal.toLocaleString()})</span>
+        </button>
+      </div>
+
+      <!-- Live Waiting State Container -->
+      <div id="stk-waiting-container" style="display: none; text-align: center; padding: 1rem 0;">
+        <div class="mpesa-radar-pulse">
+          <span style="font-size: 1.8rem;">📱</span>
+        </div>
+        
+        <h4 style="margin: 0 0 0.4rem; font-size: 1.15rem; font-weight: 900; color: #065f46;">
+          PIN Prompt Sent to Customer Phone!
+        </h4>
+        <p style="font-size: 0.88rem; color: #475569; margin: 0 0 1rem;">
+          Waiting for customer on <strong id="waiting-phone-display" style="color: #0f172a;">254...</strong> to key in their M-Pesa PIN...
+        </p>
+
+        <div style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: 10px; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: inline-block;">
+          <span style="font-size: 0.82rem; font-weight: 700; color: #64748b;">Timeout in: </span>
+          <span id="stk-countdown-timer" style="font-size: 1.1rem; font-weight: 900; color: #047857; font-family: var(--font-mono);">60s</span>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btn-cancel-stk-waiting" style="font-weight: 700;">
+            ✕ Cancel
+          </button>
+          <button type="button" class="btn btn-sm" id="btn-simulate-stk-pin" style="background: #f0fdf4; border: 1.5px solid #86efac; color: #166534; font-weight: 800;" title="Instantly simulate customer entering PIN (Testing)">
+            ⚡ Instant PIN Test
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderC2bTabHtml() {
+    return `
+      <div>
+        <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 0.95rem 1.1rem; margin-bottom: 1.25rem;">
+          <div style="font-size: 0.76rem; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
+            🏬 Store Lipa Na M-Pesa Instructions:
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.9rem;">
+            <div style="background: white; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <span style="color: #64748b; font-size: 0.76rem; font-weight: 700; text-transform: uppercase;">Paybill Number</span><br/>
+              <strong style="color: #0f172a; font-family: var(--font-mono); font-size: 1.1rem; letter-spacing: 0.5px;">174379</strong>
+            </div>
+            <div style="background: white; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <span style="color: #64748b; font-size: 0.76rem; font-weight: 700; text-transform: uppercase;">Account / Till</span><br/>
+              <strong style="color: #047857; font-family: var(--font-mono); font-size: 1.1rem; letter-spacing: 0.5px;">PAINT-POS</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label style="font-size: 0.84rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.45rem; display: block;">
+            M-Pesa Transaction Receipt Code
+          </label>
+          <input 
+            type="text" 
+            id="mpesa-manual-code-input" 
+            placeholder="e.g. SHB71K9X3A" 
+            style="width: 100%; box-sizing: border-box; min-height: 52px; font-family: var(--font-mono); font-size: 1.25rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; padding: 0.85rem 1.1rem; border: 2px solid #cbd5e1; border-radius: 10px; outline: none; background: #ffffff; color: #0f172a;" 
+            autofocus
+          />
+          <small style="color: #64748b; font-size: 0.78rem; margin-top: 6px; display: block; font-weight: 600;">
+            Type or paste the 10-character code from the customer's Safaricom SMS.
+          </small>
+        </div>
+
+        <button type="button" id="btn-verify-manual-code" class="btn btn-block btn-lg" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); border: 2px solid #334155; color: #ffffff !important; font-weight: 900; font-size: 1.02rem; padding: 0.95rem; border-radius: 10px; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.4); display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;">
+          <span style="font-size: 1.2rem;">🔍</span>
+          <span style="color: #ffffff !important; font-weight: 900; letter-spacing: 0.3px;">Verify Transaction &amp; Complete Sale</span>
+        </button>
+      </div>
+    `;
+  }
+
+  function formatPhoneForInput(raw) {
+    if (!raw) return '';
+    let cleaned = String(raw).replace(/[^0-9]/g, '');
+    if (cleaned.startsWith('254')) cleaned = cleaned.substring(3);
+    else if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+    return cleaned;
+  }
+
+  function cleanupTimers() {
+    if (pollingTimer) clearInterval(pollingTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+  }
+
+  function attachModalHandlers() {
+    // Close button
+    const closeBtn = document.getElementById('btn-close-mpesa-modal');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        cleanupTimers();
+        modal.innerHTML = '';
+      });
+    }
+
+    // Tabs
+    const tabStk = document.getElementById('tab-btn-stk');
+    const tabC2b = document.getElementById('tab-btn-c2b');
+    if (tabStk) {
+      tabStk.addEventListener('click', () => {
+        cleanupTimers();
+        activeTab = 'stk';
+        renderModalContent();
+      });
+    }
+    if (tabC2b) {
+      tabC2b.addEventListener('click', () => {
+        cleanupTimers();
+        activeTab = 'c2b';
+        renderModalContent();
+      });
+    }
+
+    if (activeTab === 'stk') {
+      const sendBtn = document.getElementById('btn-send-stk-push');
+      const phoneInput = document.getElementById('mpesa-stk-phone');
+
+      if (sendBtn && phoneInput) {
+        sendBtn.addEventListener('click', async () => {
+          const rawPhone = phoneInput.value.trim();
+          if (!rawPhone || rawPhone.length < 9) {
+            return toast('Please enter a valid customer phone number.', true);
+          }
+
+          sendBtn.disabled = true;
+          sendBtn.innerText = '⏳ Initiating STK Push...';
+
+          try {
+            const res = await apiFetch('/api/pos/mpesa/stk-push', {
+              method: 'POST',
+              body: JSON.stringify({
+                phone_number: rawPhone,
+                amount_kes: grandTotal,
+                description: `Paint POS Sale`
+              })
+            });
+
+            currentCheckoutId = res.checkout_request_id;
+
+            // Show waiting state
+            document.getElementById('stk-form-container').style.display = 'none';
+            const waitingBox = document.getElementById('stk-waiting-container');
+            waitingBox.style.display = 'block';
+            document.getElementById('waiting-phone-display').innerText = res.phone;
+
+            // Start countdown
+            secondsRemaining = 60;
+            const timerEl = document.getElementById('stk-countdown-timer');
+            countdownTimer = setInterval(() => {
+              secondsRemaining--;
+              if (timerEl) timerEl.innerText = `${secondsRemaining}s`;
+              if (secondsRemaining <= 0) {
+                cleanupTimers();
+                toast('M-Pesa prompt timed out. Please retry.', true);
+                renderModalContent();
+              }
+            }, 1000);
+
+            // Start polling status every 2 seconds
+            pollingTimer = setInterval(async () => {
+              try {
+                const statusRes = await apiFetch(`/api/pos/mpesa/status/${encodeURIComponent(currentCheckoutId)}`);
+                if (statusRes && statusRes.payment_status === 'Completed') {
+                  cleanupTimers();
+                  handleMpesaSuccess(statusRes.mpesa_receipt_code || 'MPESA_VERIFIED');
+                } else if (statusRes && (statusRes.payment_status === 'Cancelled' || statusRes.payment_status === 'Failed')) {
+                  cleanupTimers();
+                  toast(`Payment ${statusRes.payment_status}: ${statusRes.result_desc || 'Customer declined.'}`, true);
+                  renderModalContent();
+                }
+              } catch (pollErr) {
+                console.error('Polling error:', pollErr);
+              }
+            }, 2000);
+
+            // Wire simulation button for instant testing
+            const simBtn = document.getElementById('btn-simulate-stk-pin');
+            if (simBtn) {
+              simBtn.addEventListener('click', async () => {
+                simBtn.disabled = true;
+                simBtn.innerText = '⚡ Simulating PIN...';
+                try {
+                  const simRes = await apiFetch('/api/pos/mpesa/simulate-callback', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      checkout_request_id: currentCheckoutId,
+                      success: true
+                    })
+                  });
+                  cleanupTimers();
+                  handleMpesaSuccess(simRes.mpesa_receipt_code || 'RSH_SIMULATED');
+                } catch (simErr) {
+                  toast(simErr.message, true);
+                }
+              });
+            }
+
+            // Wire cancel button
+            const cancelBtn = document.getElementById('btn-cancel-stk-waiting');
+            if (cancelBtn) {
+              cancelBtn.addEventListener('click', () => {
+                cleanupTimers();
+                renderModalContent();
+              });
+            }
+          } catch (err) {
+            toast(err.message, true);
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = `🚀 Send M-Pesa PIN Prompt (KES ${grandTotal.toLocaleString()})`;
+          }
+        });
+      }
+    } else if (activeTab === 'c2b') {
+      const verifyBtn = document.getElementById('btn-verify-manual-code');
+      const codeInput = document.getElementById('mpesa-manual-code-input');
+
+      if (verifyBtn && codeInput) {
+        verifyBtn.addEventListener('click', async () => {
+          const code = codeInput.value.trim().toUpperCase();
+          if (!code || code.length < 5) {
+            return toast('Please enter a valid M-Pesa transaction code (e.g. SHB71K9X3A).', true);
+          }
+
+          verifyBtn.disabled = true;
+          verifyBtn.innerText = '🔍 Verifying Code...';
+
+          try {
+            const res = await apiFetch('/api/pos/mpesa/verify-code', {
+              method: 'POST',
+              body: JSON.stringify({
+                receipt_code: code,
+                amount_kes: grandTotal,
+                phone_number: customerPhone
+              })
+            });
+
+            handleMpesaSuccess(res.mpesa_receipt_code || code);
+          } catch (err) {
+            toast(err.message, true);
+            verifyBtn.disabled = false;
+            verifyBtn.innerText = '🔍 Verify Transaction & Complete Sale';
+          }
+        });
+      }
+    }
+  }
+
+  async function handleMpesaSuccess(receiptCode) {
+    cleanupTimers();
+    modal.innerHTML = `
+      <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
+        <div class="modal-container-card" style="max-width: 440px; width: 100%; padding: 2rem; border-radius: 16px; text-align: center; background: white; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);">
+          <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: mpesaPulse 1s infinite;">✅</div>
+          <h3 style="color: #065f46; font-size: 1.35rem; font-weight: 900; margin: 0 0 0.4rem;">
+            M-Pesa Payment Confirmed!
+          </h3>
+          <p style="color: #047857; font-size: 0.92rem; margin: 0 0 1rem;">
+            Receipt Code: <strong style="font-family: var(--font-mono); color: #0f172a; font-size: 1.05rem;">${escapeHtml(receiptCode)}</strong>
+          </p>
+          <div style="font-size: 1.4rem; font-weight: 900; color: #0f172a; margin-bottom: 1.5rem; font-family: var(--font-mono);">
+            KES ${grandTotal.toLocaleString()}
+          </div>
+          <p style="color: #64748b; font-size: 0.82rem; margin: 0;">Generating receipt and finalizing sale...</p>
+        </div>
+      </div>
+    `;
+
+    // Process checkout with Mpesa payment method
+    try {
+      const checkoutRes = await apiFetch('/api/pos/checkout', {
+        method: 'POST',
+        body: JSON.stringify({
+          customer_phone: customerPhone,
+          payment_method: 'Mpesa',
+          mpesa_receipt_code: receiptCode,
+          items: items.map(it => ({
+            type: it.type || 'hardware_product',
+            product_id: it.product_id || null,
+            base_id: it.base_id || null,
+            description: it.description,
+            quantity: Number(it.quantity || 1),
+            unit_price_kes: Number(it.unit_price_kes || 0),
+            unit_cost_kes: Number(it.unit_cost_kes || 0),
+            paint_pin: it.paint_pin || null
+          }))
+        })
+      });
+
+      setTimeout(() => {
+        modal.innerHTML = '';
+        if (typeof onComplete === 'function') {
+          onComplete(checkoutRes, receiptCode);
+        }
+      }, 1200);
+    } catch (err) {
+      toast('Error finalizing invoice: ' + err.message, true);
+    }
+  }
+
+  // Initial render
+  renderModalContent();
+}
+
+// ==========================================================================
+// STORE OWNER DARAJA M-PESA CONFIGURATION MODAL
+// ==========================================================================
+async function showMpesaConfigModal() {
+  const modal = document.getElementById('modal-container');
+  if (!modal) return;
+
+  modal.innerHTML = `
+    <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
+      <div class="modal-container-card" style="max-width: 520px; width: 100%; padding: 0; border-radius: 16px; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); background: white;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; padding: 1.1rem 1.35rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #059669;">
+          <div>
+            <div style="font-size: 0.72rem; font-weight: 800; text-transform: uppercase; color: #34d399; letter-spacing: 0.8px;">
+              ⚙️ Payment Gateway Setup
+            </div>
+            <h3 style="margin: 2px 0 0; font-size: 1.2rem; font-weight: 900; color: white;">
+              📱 Safaricom Daraja M-Pesa Settings
+            </h3>
+          </div>
+          <button class="btn-close-modal" style="color: white; background: rgba(255,255,255,0.15); border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;" onclick="document.getElementById('modal-container').innerHTML=''">✕</button>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 1.25rem 1.35rem;" id="mpesa-config-form-container">
+          <div style="text-align: center; padding: 2rem;">
+            <div class="spinner" style="margin: 0 auto 0.5rem;"></div>
+            <p>Loading gateway settings...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  try {
+    const config = await apiFetch('/api/pos/mpesa/config');
+    const container = document.getElementById('mpesa-config-form-container');
+    if (!container) return;
+
+    container.innerHTML = `
+      <form id="form-mpesa-settings">
+        <!-- Environment Switcher -->
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="font-size: 0.82rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Daraja Environment</label>
+          <select id="cfg-mpesa-env" class="form-control" style="font-weight: 700;">
+            <option value="sandbox" ${config.env === 'sandbox' ? 'selected' : ''}>🧪 Sandbox (Testing / Development)</option>
+            <option value="production" ${config.env === 'production' ? 'selected' : ''}>🟢 Live Production (Real Money)</option>
+          </select>
+        </div>
+
+        <!-- Shortcode / Paybill -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Shortcode / Paybill</label>
+            <input type="text" id="cfg-mpesa-shortcode" class="form-control" value="${escapeHtml(config.shortcode || '174379')}" placeholder="174379" style="font-family: var(--font-mono); font-weight: 700;" />
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Buy Goods Till</label>
+            <input type="text" id="cfg-mpesa-till" class="form-control" value="${escapeHtml(config.till_number || '174379')}" placeholder="Till Number" style="font-family: var(--font-mono); font-weight: 700;" />
+          </div>
+        </div>
+
+        <!-- Consumer Key -->
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Consumer Key</label>
+          <input type="text" id="cfg-mpesa-key" class="form-control" value="${escapeHtml(config.consumer_key || '')}" placeholder="Paste Consumer Key" style="font-family: var(--font-mono); font-size: 0.85rem;" />
+        </div>
+
+        <!-- Consumer Secret -->
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Consumer Secret</label>
+          <input type="password" id="cfg-mpesa-secret" class="form-control" value="${escapeHtml(config.consumer_secret || '')}" placeholder="Paste Consumer Secret" style="font-family: var(--font-mono); font-size: 0.85rem;" />
+        </div>
+
+        <!-- Passkey -->
+        <div class="form-group" style="margin-bottom: 1.25rem;">
+          <label style="font-size: 0.8rem; font-weight: 800; color: #0f172a; text-transform: uppercase;">Lipa Na M-Pesa Online Passkey</label>
+          <input type="text" id="cfg-mpesa-passkey" class="form-control" placeholder="Paste Passkey (Leave blank to keep current)" style="font-family: var(--font-mono); font-size: 0.85rem;" />
+        </div>
+
+        <!-- Action Buttons -->
+        <div style="display: flex; gap: 0.6rem; justify-content: flex-end;">
+          <button type="button" class="btn btn-secondary" onclick="document.getElementById('modal-container').innerHTML=''">
+            Cancel
+          </button>
+          <button type="submit" class="btn btn-primary" id="btn-save-mpesa-config" style="background: #059669; border-color: #059669; font-weight: 800;">
+            💾 Save Gateway Settings
+          </button>
+        </div>
+      </form>
+    `;
+
+    document.getElementById('form-mpesa-settings').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const saveBtn = document.getElementById('btn-save-mpesa-config');
+      saveBtn.disabled = true;
+      saveBtn.innerText = '💾 Saving...';
+
+      try {
+        const payload = {
+          env: document.getElementById('cfg-mpesa-env').value,
+          shortcode: document.getElementById('cfg-mpesa-shortcode').value.trim(),
+          till_number: document.getElementById('cfg-mpesa-till').value.trim(),
+          consumer_key: document.getElementById('cfg-mpesa-key').value.trim(),
+          consumer_secret: document.getElementById('cfg-mpesa-secret').value.trim(),
+          passkey: document.getElementById('cfg-mpesa-passkey').value.trim()
+        };
+
+        await apiFetch('/api/pos/mpesa/config', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+
+        toast('✅ M-Pesa gateway settings updated successfully!');
+        modal.innerHTML = '';
+      } catch (err) {
+        toast(err.message, true);
+        saveBtn.disabled = false;
+        saveBtn.innerText = '💾 Save Gateway Settings';
+      }
+    });
+  } catch (err) {
+    modal.innerHTML = `
+      <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
+        <div class="modal-container-card" style="max-width: 440px; width: 100%; padding: 1.5rem; text-align: center; background: white;">
+          <p style="color: #dc2626;">Failed to load M-Pesa settings: ${escapeHtml(err.message)}</p>
+          <button class="btn btn-secondary btn-sm" onclick="document.getElementById('modal-container').innerHTML=''">Close</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// ==========================================================================
+// PAINT PIN CUSTOMER RECALL & REPEAT FORMULATION VIEW
+// ==========================================================================
+function renderPinCardHtml(pinRecord, baseTins) {
+  const hex = pinRecord.hex_code || '#cbd5e1';
+  const formula = pinRecord.pigment_formula || '';
+  const formulaItems = typeof formula === 'string' 
+    ? formula.split(',').map(s => s.trim()).filter(Boolean)
+    : Object.entries(formula).map(([k, v]) => `${k}:${v}`);
+
+  return `
+    <div class="card pin-recall-card" style="border: 1.5px solid var(--border-light); border-radius: 12px; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; position: relative; background: #ffffff; box-shadow: 0 2px 4px rgba(0,0,0,0.02);" data-pin="${escapeHtml(pinRecord.paint_pin)}">
+      
+      <!-- Card Top: Swatch & Shade Name -->
+      <div>
+        <div style="display: flex; gap: 0.9rem; align-items: flex-start; margin-bottom: 0.85rem;">
+          <div style="width: 48px; height: 48px; min-width: 48px; border-radius: 10px; background-color: ${escapeHtml(hex)}; border: 2.5px solid #ffffff; box-shadow: 0 4px 8px rgba(0,0,0,0.15);"></div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem;">
+              <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--text-primary); line-height: 1.2; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">
+                ${escapeHtml(pinRecord.color_name || 'Custom Mix')}
+              </h4>
+              <span style="background: #0f172a; color: #f59e0b; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 800; padding: 2px 7px; border-radius: 5px; white-space: nowrap;">
+                ${escapeHtml(pinRecord.paint_pin)}
+              </span>
+            </div>
+            <div style="display: flex; gap: 0.4rem; align-items: center; margin-top: 3px; flex-wrap: wrap;">
+              <span style="font-size: 0.75rem; font-weight: 700; color: #0284c7;">${escapeHtml(pinRecord.manufacturer || 'Standard')}</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">·</span>
+              <span style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">${escapeHtml(pinRecord.color_code || '')}</span>
+              <span style="font-size: 0.7rem; color: var(--text-muted);">·</span>
+              <span style="font-size: 0.7rem; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; font-weight: 700; color: #334155;">${escapeHtml(pinRecord.required_base || 'Base')} Base</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recipe Pigment Formula Pill Box -->
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.65rem 0.8rem; margin-bottom: 0.85rem;">
+          <div style="font-size: 0.7rem; font-weight: 800; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.35rem; letter-spacing: 0.4px;">
+            🧪 Factory Pigment Dispensation Formula (${pinRecord.tin_size_litres}L Tin):
+          </div>
+          <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+            ${formulaItems.map(item => {
+              const [code, ml] = item.split(':');
+              return `<span style="background: #ffffff; border: 1px solid #cbd5e1; font-family: var(--font-mono); font-size: 0.74rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; color: #0f172a;"><strong>${escapeHtml(code)}:</strong> ${escapeHtml(ml)} ml</span>`;
+            }).join('') || '<span style="font-size: 0.75rem; color: var(--text-muted);">Custom shade formulation</span>'}
+          </div>
+        </div>
+
+        <!-- Customer & History Metadata -->
+        <div style="font-size: 0.76rem; color: var(--text-secondary); display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.8rem; margin-bottom: 1rem; border-bottom: 1px dashed var(--border-light); padding-bottom: 0.75rem;">
+          <div>
+            <span style="color: var(--text-muted);">👤 Customer:</span> 
+            <strong>${escapeHtml(pinRecord.customer_phone || 'Walk-in')}</strong>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">🛢️ Original Size:</span> 
+            <strong>${escapeHtml(pinRecord.tin_size_litres)} Litres (x${pinRecord.quantity_mixed || 1})</strong>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">🕒 Mixed On:</span> 
+            <span>${pinRecord.created_at ? new Date(pinRecord.created_at).toLocaleDateString('en-KE') : 'Past'}</span>
+          </div>
+          <div>
+            <span style="color: var(--text-muted);">👨‍💼 Attendant:</span> 
+            <span>${escapeHtml(pinRecord.mixed_by_name || 'Staff')}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card Bottom: Re-Mix & Repeat Order Form -->
+      <div style="background: #fdfefe; border-top: 1px solid var(--border-light); padding-top: 0.85rem; margin-top: auto;">
+        <div style="font-size: 0.74rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.5rem;">
+          🔁 Repeat Order Mix Dispenser:
+        </div>
+        
+        <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem;">
+          <!-- Tin Size Selector -->
+          <div style="flex: 1.4;">
+            <label style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 2px;">Tin Size</label>
+            <select class="form-control select-repeat-size" style="padding: 4px 8px; font-size: 0.82rem; font-weight: 700;">
+              <option value="1" ${Number(pinRecord.tin_size_litres) === 1 ? 'selected' : ''}>1 Litre Tin</option>
+              <option value="4" ${Number(pinRecord.tin_size_litres) === 4 ? 'selected' : ''}>4 Litres Tin</option>
+              <option value="20" ${Number(pinRecord.tin_size_litres) === 20 ? 'selected' : ''}>20 Litres Drum</option>
+            </select>
+          </div>
+
+          <!-- Quantity Spinner -->
+          <div style="flex: 1;">
+            <label style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 2px;">Quantity</label>
+            <input type="number" min="1" max="100" value="1" class="form-control input-repeat-qty" style="padding: 4px 8px; font-size: 0.82rem; font-weight: 700; text-align: center;" />
+          </div>
+
+          <!-- Customer Phone Confirmation -->
+          <div style="flex: 1.6;">
+            <label style="font-size: 0.68rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 2px;">Phone</label>
+            <input type="text" class="form-control input-repeat-phone" value="${escapeHtml(pinRecord.customer_phone || '')}" placeholder="Customer Phone" style="padding: 4px 8px; font-size: 0.82rem;" />
+          </div>
+        </div>
+
+        <!-- Action Button Row -->
+        <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+          <button class="btn btn-primary btn-sm btn-dispense-repeat" style="flex: 2; font-weight: 800; padding: 7px 10px; font-size: 0.82rem; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            <span>🎨</span> Dispense Mix &amp; Add to Cart
+          </button>
+          <button class="btn btn-secondary btn-sm btn-print-repeat-label" title="Print Can Lid Label" style="padding: 7px 10px; font-size: 0.82rem;">
+            🖨️ Label
+          </button>
+          <button class="btn btn-secondary btn-sm btn-copy-card-pin" title="Copy PIN" style="padding: 7px 10px; font-size: 0.82rem;">
+            📋
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function attachPinCardListeners(list, baseTins) {
+  const cards = document.querySelectorAll('.pin-recall-card');
+  cards.forEach((card, idx) => {
+    const record = list[idx];
+    if (!record) return;
+
+    // 1. Copy PIN button
+    const copyBtn = card.querySelector('.btn-copy-card-pin');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText(record.paint_pin).then(() => {
+          toast(`Copied ${record.paint_pin} to clipboard!`);
+          copyBtn.innerText = '✅';
+          setTimeout(() => { copyBtn.innerText = '📋'; }, 2000);
+        });
+      });
+    }
+
+    // 2. Print Label button
+    const printBtn = card.querySelector('.btn-print-repeat-label');
+    if (printBtn) {
+      printBtn.addEventListener('click', () => {
+        const sizeSelect = card.querySelector('.select-repeat-size');
+        const phoneInput = card.querySelector('.input-repeat-phone');
+        showLidStickerModal({
+          pin: record.paint_pin,
+          colorName: record.color_name || 'Custom Mix',
+          manufacturer: record.manufacturer || 'Standard',
+          baseName: `${record.required_base || 'Pastel'} Base`,
+          tinSize: sizeSelect ? sizeSelect.value : record.tin_size_litres,
+          formula: record.pigment_formula || '',
+          phone: phoneInput ? phoneInput.value : record.customer_phone,
+          date: new Date().toLocaleDateString('en-KE')
+        });
+      });
+    }
+
+    // 3. Dispense Repeat Mix & Add to POS Cart
+    const dispenseBtn = card.querySelector('.btn-dispense-repeat');
+    if (dispenseBtn) {
+      dispenseBtn.addEventListener('click', async () => {
+        const sizeSelect = card.querySelector('.select-repeat-size');
+        const qtyInput = card.querySelector('.input-repeat-qty');
+        const phoneInput = card.querySelector('.input-repeat-phone');
+
+        const tinSize = sizeSelect ? Number(sizeSelect.value) : Number(record.tin_size_litres);
+        const qty = qtyInput ? Math.max(1, Number(qtyInput.value) || 1) : 1;
+        const phone = phoneInput && phoneInput.value.trim() ? phoneInput.value.trim() : (record.customer_phone || '254700000000');
+
+        const reqBaseLower = (record.required_base || 'Pastel').toLowerCase();
+        const mfrLower = (record.manufacturer || '').toLowerCase();
+
+        // 1. Flexible match by manufacturer, base name, and exact tin size with stock
+        let matchingBase = (baseTins || []).find(b => 
+          (b.manufacturer.toLowerCase().includes(mfrLower) || mfrLower.includes(b.manufacturer.toLowerCase())) &&
+          (b.base_name.toLowerCase().includes(reqBaseLower) || reqBaseLower.includes(b.base_name.toLowerCase())) &&
+          Number(b.tin_size_litres) === tinSize &&
+          b.quantity_in_stock >= qty
+        );
+
+        // 2. Fallback matching base type with sufficient stock
+        if (!matchingBase) {
+          matchingBase = (baseTins || []).find(b => 
+            (b.base_name.toLowerCase().includes(reqBaseLower) || reqBaseLower.includes(b.base_name.toLowerCase())) &&
+            Number(b.tin_size_litres) === tinSize &&
+            b.quantity_in_stock >= qty
+          );
+        }
+
+        // 3. Fallback matching any available base tin
+        if (!matchingBase) {
+          matchingBase = (baseTins || []).find(b => b.quantity_in_stock >= qty) || (baseTins || [])[0];
+        }
+
+        if (!matchingBase) {
+          return toast(`Base tin for ${record.manufacturer} ${record.required_base} (${tinSize}L) not found in stock catalog.`, true);
+        }
+
+        dispenseBtn.disabled = true;
+        dispenseBtn.innerText = '⏳ Mixing & Dispensing...';
+
+        try {
+          const payload = {
+            color_id: record.color_id,
+            base_id: matchingBase.base_id,
+            tin_size_litres: tinSize,
+            quantity_mixed: qty,
+            customer_phone: phone,
+            painter_phone: record.painter_phone || null
+          };
+
+          const res = await apiFetch('/api/paintpin/mix', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+
+          // Add to POS Cart
+          const unitPrice = Math.round(res.unit_cost_kes * 1.35 / 50) * 50;
+          state.cart.push({
+            type: 'mixed_paint',
+            description: `Repeat Mix: ${record.color_name} (${record.color_code || ''}) - ${tinSize}L [${res.paint_pin}]`,
+            paint_pin: res.paint_pin,
+            quantity: qty,
+            unit_cost_kes: res.unit_cost_kes,
+            unit_price_kes: unitPrice
+          });
+
+          // Update POS Sidebar Badge dynamically
+          const posBtn = document.querySelector('button[data-view="pos"]');
+          if (posBtn) {
+            const totalUnits = (state.cart || []).reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+            let badge = posBtn.querySelector('.nav-badge');
+            if (totalUnits > 0) {
+              if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'nav-badge';
+                badge.id = 'top-cart-badge';
+                posBtn.appendChild(badge);
+              }
+              badge.innerText = totalUnits;
+              badge.style.display = 'inline-block';
+            }
+          }
+
+          toast(`🎨 Mix Dispensed & Added to POS Cart! PIN: ${res.paint_pin}`);
+
+          // Show Lid Sticker Modal
+          showLidStickerModal({
+            pin: res.paint_pin,
+            colorName: record.color_name,
+            manufacturer: record.manufacturer,
+            baseName: matchingBase.base_name,
+            tinSize: tinSize,
+            formula: record.pigment_formula,
+            phone: phone,
+            date: new Date().toLocaleDateString('en-KE')
+          });
+        } catch (err) {
+          toast(err.message, true);
+        } finally {
+          dispenseBtn.disabled = false;
+          dispenseBtn.innerHTML = `<span>🎨</span> Dispense Mix &amp; Add to Cart`;
+        }
+      });
+    }
+  });
+}
+
+async function renderPinLookupView(container) {
+  let baseTins = [];
+  let activeMfr = 'all';
+
+  container.innerHTML = `
+    <div class="view-header">
+      <div class="view-header-content">
+        <h2>${Icons.pinLookup} Paint PIN Recall &amp; Repeat Formulation</h2>
+        <p>Recall exact customer color recipes when a returning client brings their Paint PIN or phone number. Dispense repeat batches with 1-click!</p>
+      </div>
+      <div class="view-header-actions">
+        <button class="btn btn-secondary" id="btn-refresh-pin-history">
+          🔄 Refresh PIN Records
+        </button>
+        <button class="btn btn-primary" onclick="showView('mix')">
+          🎨 New Paint Mix Studio
+        </button>
+      </div>
+    </div>
+
+    <!-- Search Box Card -->
+    <div class="card" style="margin-bottom: 1.5rem; padding: 1.25rem 1.5rem; border: 1.5px solid var(--border-light); background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);">
+      <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <label style="font-size: 0.82rem; font-weight: 800; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px;">
+          🔍 Search by Paint PIN, Customer / Fundi Phone, or Shade Name
+        </label>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 260px; position: relative;">
+            <input 
+              type="text" 
+              id="pin-search-input" 
+              class="form-control" 
+              placeholder="Enter PIN (e.g. 46849 or PIN-2026-46849), Phone (e.g. 0712345678), or Color..." 
+              style="padding-left: 2.4rem; font-size: 0.95rem; font-weight: 600;" 
+              autofocus
+            />
+            <span style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 1rem;">🔍</span>
+          </div>
+          <button class="btn btn-primary" id="btn-do-pin-search" style="min-width: 140px; font-weight: 700;">
+            Search Records
+          </button>
+          <button class="btn btn-secondary" id="btn-clear-pin-search" style="min-width: 90px;">
+            Clear
+          </button>
+        </div>
+        
+        <!-- Quick Preset Filter Pills -->
+        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.25rem;">
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 700;">Quick Filters:</span>
+          <button class="btn btn-sm btn-filter active" data-mfr="all" style="padding: 3px 10px; font-size: 0.74rem;">All Brands</button>
+          <button class="btn btn-sm btn-filter" data-mfr="Crown" style="padding: 3px 10px; font-size: 0.74rem;">Crown Paints</button>
+          <button class="btn btn-sm btn-filter" data-mfr="Plascon" style="padding: 3px 10px; font-size: 0.74rem;">Plascon</button>
+          <button class="btn btn-sm btn-filter" data-mfr="Basco Duracoat" style="padding: 3px 10px; font-size: 0.74rem;">Basco Duracoat</button>
+          <button class="btn btn-sm btn-filter" data-mfr="Sadolin" style="padding: 3px 10px; font-size: 0.74rem;">Sadolin</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Results / Recent History Container -->
+    <div id="pin-results-container">
+      <div style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+        <div class="spinner" style="margin: 0 auto 1rem;"></div>
+        <p style="font-weight: 600;">Loading Paint PIN records &amp; recipes...</p>
+      </div>
+    </div>
+  `;
+
+  // Helper to render PIN cards list
+  async function loadDataAndRender(searchTerm = '', mfrFilter = 'all') {
+    const resultsContainer = document.getElementById('pin-results-container');
+    if (!resultsContainer) return;
+
+    try {
+      let url = searchTerm ? `/api/paintpin/lookup?q=${encodeURIComponent(searchTerm)}` : '/api/paintpin/recent';
+      const [pins, bases] = await Promise.all([
+        apiFetch(url),
+        apiFetch('/api/stock/bases')
+      ]);
+      baseTins = bases || [];
+      let list = pins || [];
+
+      if (mfrFilter && mfrFilter !== 'all') {
+        list = list.filter(p => (p.manufacturer || '').toLowerCase().includes(mfrFilter.toLowerCase()));
+      }
+
+      if (list.length === 0) {
+        resultsContainer.innerHTML = `
+          <div class="card" style="text-align: center; padding: 3rem 1.5rem; border: 2px dashed var(--border-light);">
+            <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🎨</div>
+            <h3 style="margin: 0 0 0.4rem; font-weight: 800; color: var(--text-primary);">No Paint PIN Records Found</h3>
+            <p style="margin: 0 auto 1.25rem; max-width: 420px; color: var(--text-muted); font-size: 0.88rem;">
+              ${searchTerm ? `No matching mixes found for "${escapeHtml(searchTerm)}". Try searching by customer phone number or shade name.` : 'No custom paint mixes recorded yet. Mix your first shade in the Tinting Studio!'}
+            </p>
+            <button class="btn btn-primary" onclick="showView('mix')">
+              🎨 Go to Paint Mixing Studio
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      resultsContainer.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+            ${searchTerm ? `🎯 Search Results for "${escapeHtml(searchTerm)}"` : `🕒 Recently Mixed Paint PINs in Store`}
+            <span style="font-size: 0.75rem; background: #0f172a; color: #f59e0b; padding: 2px 8px; border-radius: 12px; font-weight: 800;">${list.length} Records</span>
+          </h3>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1.25rem;">
+          ${list.map(pinRecord => renderPinCardHtml(pinRecord, baseTins)).join('')}
+        </div>
+      `;
+
+      attachPinCardListeners(list, baseTins);
+    } catch (err) {
+      resultsContainer.innerHTML = `
+        <div class="card" style="padding: 2rem; color: var(--status-danger); text-align: center;">
+          <p>Failed to load Paint PIN records: ${escapeHtml(err.message)}</p>
+          <button class="btn btn-secondary btn-sm" id="btn-retry-pins" style="margin-top: 0.5rem;">Retry</button>
+        </div>
+      `;
+      const retryBtn = document.getElementById('btn-retry-pins');
+      if (retryBtn) retryBtn.addEventListener('click', () => loadDataAndRender(searchTerm, mfrFilter));
+    }
+  }
+
+  // Initial load
+  loadDataAndRender();
+
+  // Attach search bar handlers
+  const searchInput = document.getElementById('pin-search-input');
+  const searchBtn = document.getElementById('btn-do-pin-search');
+  const clearBtn = document.getElementById('btn-clear-pin-search');
+  const refreshBtn = document.getElementById('btn-refresh-pin-history');
+
+  function triggerSearch() {
+    const term = searchInput ? searchInput.value.trim() : '';
+    loadDataAndRender(term, activeMfr);
+  }
+
+  if (searchBtn) searchBtn.addEventListener('click', triggerSearch);
+  if (searchInput) {
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') triggerSearch();
+    });
+  }
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (searchInput) searchInput.value = '';
+      loadDataAndRender('', activeMfr);
+    });
+  }
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      toast('Refreshed Paint PIN records');
+      triggerSearch();
+    });
+  }
+
+  // Filter pills
+  const filterBtns = container.querySelectorAll('.btn-filter');
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeMfr = btn.dataset.mfr || 'all';
+      triggerSearch();
+    });
+  });
+}
 
 // ==========================================================================
 // 2. POS CHECKOUT VIEW & INTERACTIVE INVENTORY SEARCH
@@ -2352,11 +3565,21 @@ async function renderPosView(container) {
         </div>
 
         <form id="pos-checkout-form">
-          <div class="form-group">
-            <label>Customer / Fundi Phone Number</label>
-            <div class="input-with-icon">
-              <span class="input-icon">${Icons.phone}</span>
-              <input type="text" id="pos-customer-phone" placeholder="254712345678" value="254712345678" />
+          <div class="form-group" style="margin-bottom: 1.2rem;">
+            <label style="font-weight: 800; font-size: 0.84rem; color: #0f172a; text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+              Customer / Fundi Phone Number
+            </label>
+            <div style="display: flex; align-items: stretch; width: 100%; border: 1.5px solid #cbd5e1; border-radius: 10px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+              <div style="background: #f8fafc; border-right: 1.5px solid #e2e8f0; padding: 0.75rem 0.9rem; display: flex; align-items: center; justify-content: center; color: #64748b;">
+                ${Icons.phone}
+              </div>
+              <input 
+                type="tel" 
+                id="pos-customer-phone" 
+                placeholder="254712345678" 
+                value="254712345678" 
+                style="flex: 1; border: none !important; outline: none !important; padding: 0.75rem 1rem !important; font-size: 1.05rem !important; font-weight: 700 !important; color: #0f172a !important; font-family: var(--font-mono) !important; background: transparent !important; width: 100% !important;" 
+              />
             </div>
             <div id="credit-status-pill" style="margin-top:0.4rem;"></div>
           </div>
@@ -2822,6 +4045,71 @@ async function renderPosView(container) {
     const customerPhone = phoneInput ? phoneInput.value.trim() : '254700000000';
     const grandTotal = state.cart.reduce((sum, it) => sum + ((it.unit_price_kes || 0) * (it.quantity || 1)), 0);
 
+    // If M-Pesa is selected, trigger Daraja Direct Checkout Modal
+    if (selectedPaymentMethod === 'M-Pesa') {
+      showMpesaCheckoutModal({
+        customerPhone: customerPhone,
+        grandTotal: grandTotal,
+        items: state.cart,
+        onComplete: (res, receiptCode) => {
+          resultBox.innerHTML = `
+            <div style="background:#ecfdf5; border:1.5px solid #a7f3d0; border-radius:12px; padding:1.25rem; text-align:center;">
+              <div style="font-size:2.2rem; margin-bottom:4px;">🎉</div>
+              <h4 style="color:#065f46; font-size:1.15rem; font-weight:800; margin:0 0 4px;">M-Pesa Sale Completed!</h4>
+              <p style="color:#047857; font-size:0.88rem; margin:0 0 0.5rem;">Invoice <strong>#${res.invoice_number || 'INV-SUCCESS'}</strong> · M-Pesa Receipt <strong>${escapeHtml(receiptCode)}</strong></p>
+              <div style="font-size:1.15rem; font-weight:900; color:#0f172a; margin-bottom:1rem; font-family:var(--font-mono);">KES ${grandTotal.toLocaleString()}</div>
+              <div style="display:flex; justify-content:center; gap:0.6rem; flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" id="pos-btn-print-receipt" style="background:#059669; border-color:#059669;">🖨️ Print Receipt</button>
+                <button class="btn btn-secondary btn-sm" id="pos-btn-new-sale">🛒 Next Sale</button>
+              </div>
+            </div>
+          `;
+
+          const printBtn = document.getElementById('pos-btn-print-receipt');
+          if (printBtn) {
+            printBtn.addEventListener('click', () => {
+              showReceiptModal({
+                invoice_id: res.invoice_id,
+                invoice_number: res.invoice_number,
+                customer_phone: customerPhone,
+                payment_method: 'Mpesa',
+                mpesa_receipt_code: receiptCode,
+                total_kes: grandTotal,
+                total_amount_kes: grandTotal,
+                created_at: new Date().toISOString(),
+                items: res.items || state.cart
+              });
+            });
+          }
+
+          const nextSaleBtn = document.getElementById('pos-btn-new-sale');
+          if (nextSaleBtn) {
+            nextSaleBtn.addEventListener('click', () => {
+              state.cart = [];
+              renderPosView(container);
+            });
+          }
+
+          // Open receipt automatically
+          showReceiptModal({
+            invoice_id: res.invoice_id,
+            invoice_number: res.invoice_number,
+            customer_phone: customerPhone,
+            payment_method: 'Mpesa',
+            mpesa_receipt_code: receiptCode,
+            total_kes: grandTotal,
+            total_amount_kes: grandTotal,
+            created_at: new Date().toISOString(),
+            items: res.items || state.cart
+          });
+
+          state.cart = [];
+          updateTotals();
+        }
+      });
+      return;
+    }
+
     const payload = {
       customer_phone: customerPhone,
       payment_method: selectedPaymentMethod,
@@ -2867,6 +4155,7 @@ async function renderPosView(container) {
             invoice_number: res.invoice_number,
             customer_phone: customerPhone,
             payment_method: selectedPaymentMethod,
+            total_kes: grandTotal,
             total_amount_kes: grandTotal,
             created_at: new Date().toISOString(),
             items: payload.items
@@ -6907,10 +8196,11 @@ function printSaleReceipt(inv) {
         <div class="center">Nairobi, Kenya · Tel: 0700 000 000</div>
         <div class="divider"></div>
         <div class="flex"><span>Invoice:</span><span class="bold">${inv.invoice_number}</span></div>
-        <div class="flex"><span>Date:</span><span>${new Date(inv.created_at).toLocaleString()}</span></div>
+        <div class="flex"><span>Date:</span><span>${new Date(inv.created_at || Date.now()).toLocaleString()}</span></div>
         <div class="flex"><span>Cashier:</span><span>${inv.served_by || 'Staff'}</span></div>
         <div class="flex"><span>Customer:</span><span>${inv.customer_phone || 'Walk-in'}</span></div>
         <div class="flex"><span>Payment:</span><span class="bold">${inv.payment_method}</span></div>
+        ${inv.mpesa_receipt_code ? `<div class="flex"><span>M-Pesa Ref:</span><span class="bold" style="font-family:monospace; color:#047857;">${inv.mpesa_receipt_code}</span></div>` : ''}
         <div class="divider"></div>
         <table>
           <thead>
@@ -6922,7 +8212,7 @@ function printSaleReceipt(inv) {
                 <td>${i.description}</td>
                 <td class="r">${i.quantity}</td>
                 <td class="r">${fmt(i.unit_price_kes)}</td>
-                <td class="r">${fmt(i.quantity * i.unit_price_kes)}</td>
+                <td class="r">${fmt((i.quantity || 1) * (i.unit_price_kes || 0))}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -6930,7 +8220,7 @@ function printSaleReceipt(inv) {
         <div class="divider"></div>
         <div class="flex bold" style="font-size: 13px;">
           <span>TOTAL PAID:</span>
-          <span>KES ${fmt(inv.total_kes)}</span>
+          <span>KES ${fmt(inv.total_kes || inv.total_amount_kes)}</span>
         </div>
         <div class="divider"></div>
         <div class="center" style="font-size: 10px; margin-top: 10px;">
@@ -7775,8 +9065,23 @@ if ('serviceWorker' in navigator) {
 }
 
 if (state.token) {
-  state.user = JSON.parse(sessionStorage.getItem('paint_erp_user') || 'null');
-  if (!state.user) setToken(null);
+  state.user = getStoredUser();
+  if (state.user) {
+    apiFetch('/api/auth/profile').then(user => {
+      if (user) {
+        saveUser(user);
+        renderApp();
+      }
+    }).catch(err => {
+      if (err && err.status === 401) {
+        setToken(null);
+        saveUser(null);
+        renderApp();
+      }
+    });
+  } else {
+    setToken(null);
+  }
 }
 renderApp();
 

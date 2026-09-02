@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { requireAuth, requireOwner } = require('../middleware/auth');
 const { logAction } = require('../audit');
+const { syncToSupabase, deleteFromSupabase, updateSupabase } = require('../supabaseSync');
 
 // 1. REAL-TIME CASHBOOK & BALANCES OVERVIEW
 router.get('/cashflow', requireAuth, (req, res) => {
@@ -133,6 +134,26 @@ router.post('/expense', requireAuth, requireOwner, (req, res) => {
 
   try {
     const expenseId = execExpense();
+    
+    syncToSupabase('expenses', {
+      expense_id: Number(expenseId),
+      category: category.trim(),
+      amount_kes: amt,
+      recipient: recipient.trim(),
+      payment_method: payment_method,
+      account_id: accId,
+      notes: notes ? notes.trim() : null,
+      recorded_by: req.user.user_id
+    });
+
+    logAction({
+      userId: req.user.user_id,
+      deviceFingerprint: req.headers['x-device-fingerprint'] || 'unknown',
+      action: 'EXPENSE_LOGGED',
+      details: `Logged shop expense: KES ${amt} for ${category} paid to ${recipient} via ${payment_method}`,
+      status: 'ALLOWED'
+    });
+
     res.json({
       ok: true,
       expense_id: expenseId,

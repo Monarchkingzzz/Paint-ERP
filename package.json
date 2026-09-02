@@ -8,14 +8,21 @@
   },
   "scripts": {
     "start": "node paint-erp/backend/server.js",
-    "dev": "node --watch paint-erp/backend/server.js"
+    "dev": "node --watch paint-erp/backend/server.js",
+    "supabase:seed": "node scripts/generate_supabase_seed.js",
+    "supabase:push": "node scripts/push_to_supabase.js",
+    "supabase:sync": "node scripts/sync_all.js",
+    "supabase:dry-run": "node scripts/push_to_supabase.js --dry-run"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.113.0",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "csv-parse": "^5.5.6",
+    "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
+    "pg": "^8.23.0",
     "uuid": "^9.0.1"
   }
 }

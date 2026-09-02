@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { requireAuth, requireOwner } = require('../middleware/auth');
 const { logAction } = require('../audit');
+const { syncToSupabase, updateSupabase, deleteFromSupabase } = require('../supabaseSync');
 
 // 1. GET ALL SUPPLIERS & OVERVIEW
 router.get('/', requireAuth, (req, res) => {
@@ -57,7 +58,18 @@ router.post('/', requireAuth, requireOwner, (req, res) => {
       initBal
     );
 
-    const supplierId = info.lastInsertRowid;
+    const supplierId = Number(info.lastInsertRowid);
+
+    syncToSupabase('suppliers', {
+      supplier_id: supplierId,
+      name: name.trim(),
+      contact_person: contact_person ? contact_person.trim() : null,
+      phone: phone ? phone.trim() : null,
+      email: email ? email.trim() : null,
+      location: location ? location.trim() : null,
+      lead_time_days: Number(lead_time_days) || 3,
+      current_balance_kes: initBal
+    });
 
     if (initBal > 0) {
       db.prepare(`

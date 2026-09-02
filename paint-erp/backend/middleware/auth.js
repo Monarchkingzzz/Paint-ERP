@@ -1,21 +1,66 @@
-// Minimal in-memory session store for demo purposes.
-const sessions = new Map(); // token -> { user_id, full_name, system_role, phone_number }
+const crypto = require('crypto');
+
+const JWT_SECRET = process.env.JWT_SECRET || process.env.AUTH_SECRET || 'paint-erp-enterprise-jwt-master-key-2026';
+
+// In-memory session cache + fallback to cryptographic signature verification
+const sessions = new Map();
 
 function createSession(user) {
-  const token = require('crypto').randomBytes(24).toString('hex');
-  sessions.set(token, {
+  const payload = {
     user_id: user.user_id,
     full_name: user.full_name,
     system_role: user.system_role,
-    phone_number: user.phone_number
-  });
+    phone_number: user.phone_number,
+    created_at: Date.now()
+  };
+
+  const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signature = crypto
+    .createHmac('sha256', JWT_SECRET)
+    .update(payloadBase64)
+    .digest('base64url');
+
+  const token = `erp_${payloadBase64}.${signature}`;
+  sessions.set(token, payload);
   return token;
+}
+
+function verifyToken(token) {
+  if (!token) return null;
+
+  // 1. Check in-memory cache first
+  if (sessions.has(token)) {
+    return sessions.get(token);
+  }
+
+  // 2. Decode & verify cryptographic HMAC signature
+  if (token.startsWith('erp_')) {
+    const raw = token.slice(4);
+    const parts = raw.split('.');
+    if (parts.length === 2) {
+      const [payloadBase64, signature] = parts;
+      try {
+        const expectedSig = crypto
+          .createHmac('sha256', JWT_SECRET)
+          .update(payloadBase64)
+          .digest('base64url');
+
+        if (crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+          const payload = JSON.parse(Buffer.from(payloadBase64, 'base64url').toString('utf8'));
+          sessions.set(token, payload);
+          return payload;
+        }
+      } catch (e) {}
+    }
+  }
+
+  return null;
 }
 
 function requireAuth(req, res, next) {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session) {
     return res.status(401).json({ error: 'Not authenticated. Please log in.' });
   }
@@ -77,4 +122,4 @@ function verifySecurityPin(pin, actionType = 'ALL', user = null) {
   return { valid: false, error: 'Invalid or expired Store Authorization PIN. Please request an active authorization PIN from the Store Owner.' };
 }
 
-module.exports = { sessions, createSession, requireAuth, requireOwner, verifySecurityPin };
+module.exports = { sessions, createSession, verifyToken, requireAuth, requireOwner, verifySecurityPin };

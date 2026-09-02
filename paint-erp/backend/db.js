@@ -1,3 +1,4 @@
+require('dotenv').config();
 const path = require('path');
 const fs = require('fs');
 const { DatabaseSync } = require('node:sqlite');
@@ -53,7 +54,34 @@ db.exec(`
     setting_val TEXT
   );
   INSERT OR IGNORE INTO store_settings (setting_key, setting_val) VALUES ('master_security_pin', '7788');
+
+  CREATE TABLE IF NOT EXISTS mpesa_config (
+    config_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    env             TEXT NOT NULL DEFAULT 'sandbox',
+    consumer_key    TEXT,
+    consumer_secret TEXT,
+    passkey         TEXT,
+    shortcode       TEXT NOT NULL DEFAULT '174379',
+    till_number     TEXT,
+    callback_url    TEXT,
+    is_active       INTEGER NOT NULL DEFAULT 1,
+    updated_at      TEXT DEFAULT CURRENT_TIMESTAMP
+  );
+  INSERT OR IGNORE INTO mpesa_config (config_id, env, consumer_key, consumer_secret, passkey, shortcode, is_active)
+  VALUES (1, 'sandbox', 'm09sAAL7GZ4cE1V2sK7w80N08XhZ1P9j', 'L74J99Q8Wv12x0Pq', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919', '174379', 1);
 `);
+
+// Safely ensure mpesa_payments columns exist
+try {
+  const mpesaCols = db.prepare("PRAGMA table_info(mpesa_payments)").all().map(c => c.name);
+  if (!mpesaCols.includes('merchant_request_id')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN merchant_request_id TEXT;");
+  if (!mpesaCols.includes('transaction_type')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN transaction_type TEXT DEFAULT 'STK_PUSH';");
+  if (!mpesaCols.includes('result_code')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN result_code INTEGER;");
+  if (!mpesaCols.includes('result_desc')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN result_desc TEXT;");
+  if (!mpesaCols.includes('raw_payload')) db.exec("ALTER TABLE mpesa_payments ADD COLUMN raw_payload TEXT;");
+} catch (e) {
+  // Ignored if columns already present
+}
 
 function hashPassword(password) {
   const salt = 'paint-erp-static-salt';

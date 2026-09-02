@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { db, hashPassword } = require('../db');
-const { createSession, sessions } = require('../middleware/auth');
+const { createSession, verifyToken, sessions } = require('../middleware/auth');
 const { logAction } = require('../audit');
+const { syncToSupabase, updateSupabase, deleteFromSupabase } = require('../supabaseSync');
 
 // POST /api/auth/login
 router.post('/login', (req, res) => {
@@ -60,7 +61,7 @@ router.post('/logout', (req, res) => {
 router.get('/profile', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session) return res.status(401).json({ error: 'Not authenticated.' });
 
   const user = db.prepare('SELECT user_id, full_name, phone_number, system_role, is_active FROM store_users WHERE user_id = ?').get(session.user_id);
@@ -80,7 +81,7 @@ router.get('/profile', (req, res) => {
 router.get('/users', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required.' });
   }
@@ -94,7 +95,7 @@ router.get('/users', (req, res) => {
 router.post('/generate-pin', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required to generate security PINs.' });
   }
@@ -144,7 +145,7 @@ router.post('/generate-pin', (req, res) => {
 router.get('/pins', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required.' });
   }
@@ -235,7 +236,7 @@ router.post('/forgot-password', (req, res) => {
 router.get('/employees', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required to view employee management.' });
   }
@@ -254,7 +255,7 @@ router.get('/employees', (req, res) => {
 router.post('/employees', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required to add employees.' });
   }
@@ -282,6 +283,16 @@ router.post('/employees', (req, res) => {
     VALUES (?, ?, ?, ?, 1)
   `).run(full_name.trim(), cleanPhone, role, passHash);
 
+  const newUserId = Number(info.lastInsertRowid);
+  syncToSupabase('store_users', {
+    user_id: newUserId,
+    full_name: full_name.trim(),
+    phone_number: cleanPhone,
+    system_role: role,
+    password_hash: passHash,
+    is_active: 1
+  });
+
   logAction({
     userId: session.user_id,
     deviceFingerprint: req.headers['x-device-fingerprint'] || 'unknown-device',
@@ -306,7 +317,7 @@ router.post('/employees', (req, res) => {
 router.put('/employees/:id/status', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required.' });
   }
@@ -339,7 +350,7 @@ router.put('/employees/:id/status', (req, res) => {
 router.post('/employees/:id/reset-password', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required.' });
   }
@@ -372,7 +383,7 @@ router.post('/employees/:id/reset-password', (req, res) => {
 router.get('/store-pin', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required to view store security PINs.' });
   }
@@ -402,7 +413,7 @@ router.get('/store-pin', (req, res) => {
 router.post('/set-master-pin', (req, res) => {
   const authHeader = req.headers['authorization'] || '';
   const token = authHeader.replace('Bearer ', '').trim();
-  const session = sessions.get(token);
+  const session = verifyToken(token);
   if (!session || session.system_role !== 'Owner') {
     return res.status(403).json({ error: 'Owner access required to change master security PIN.' });
   }

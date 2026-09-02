@@ -3,6 +3,7 @@ const router = express.Router();
 const { db } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { logAction } = require('../audit');
+const { syncToSupabase } = require('../supabaseSync');
 
 function generatePin() {
   const year = new Date().getFullYear();
@@ -79,6 +80,16 @@ router.post('/mix', requireAuth, (req, res) => {
     }
   });
   mixTransaction();
+
+  syncToSupabase('paint_pin_ledger', {
+    paint_pin: pin,
+    color_id: Number(color_id),
+    customer_phone: customer_phone,
+    painter_phone: painter_phone || null,
+    tin_size_litres: Number(tin_size_litres),
+    quantity_mixed: Number(qty),
+    created_by: req.user.user_id
+  });
 
   logAction({
     userId: req.user.user_id,
@@ -232,27 +243,61 @@ router.post('/mix-multi', requireAuth, (req, res) => {
   });
 });
 
-// GET /api/paintpin/lookup?pin=PIN-2026-10042  OR  ?phone=2547...
+// GET /api/paintpin/lookup?q=... or ?pin=... or ?phone=...
 router.get('/lookup', requireAuth, (req, res) => {
-  const { pin, phone } = req.query;
-  let rows;
-  if (pin) {
-    rows = db.prepare(`
-      SELECT ppl.*, mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base
-      FROM paint_pin_ledger ppl JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
-      WHERE ppl.paint_pin = ?
-    `).all(pin);
-  } else if (phone) {
-    rows = db.prepare(`
-      SELECT ppl.*, mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base
-      FROM paint_pin_ledger ppl JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
-      WHERE ppl.customer_phone = ? OR ppl.painter_phone = ?
+  try {
+    const { pin, phone, q } = req.query;
+    const searchTerm = (q || pin || phone || '').trim();
+    if (!searchTerm) {
+      return res.status(400).json({ error: 'Search term (?q=, ?pin=, or ?phone=) is required.' });
+    }
+
+    const cleanTerm = searchTerm.replace(/^#/, '');
+    const likeTerm = `%${cleanTerm}%`;
+
+    const rows = db.prepare(`
+      SELECT ppl.*, 
+             mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base,
+             u.full_name AS mixed_by_name
+      FROM paint_pin_ledger ppl
+      JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
+      LEFT JOIN store_users u ON u.user_id = ppl.created_by
+      WHERE ppl.paint_pin = ? 
+         OR ppl.paint_pin LIKE ?
+         OR ppl.customer_phone = ? 
+         OR ppl.customer_phone LIKE ?
+         OR ppl.painter_phone = ? 
+         OR ppl.painter_phone LIKE ?
+         OR mc.color_name LIKE ?
+         OR mc.color_code LIKE ?
       ORDER BY ppl.created_at DESC
-    `).all(phone, phone);
-  } else {
-    return res.status(400).json({ error: 'Provide either ?pin= or ?phone=' });
+      LIMIT 50
+    `).all(cleanTerm, likeTerm, cleanTerm, likeTerm, cleanTerm, likeTerm, likeTerm, likeTerm);
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.json(rows);
+});
+
+// GET /api/paintpin/recent - Get latest 30 mixed PINs for quick recall
+router.get('/recent', requireAuth, (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT ppl.*, 
+             mc.manufacturer, mc.color_name, mc.color_code, mc.hex_code, mc.pigment_formula, mc.required_base,
+             u.full_name AS mixed_by_name
+      FROM paint_pin_ledger ppl
+      JOIN manufacturer_colors mc ON mc.color_id = ppl.color_id
+      LEFT JOIN store_users u ON u.user_id = ppl.created_by
+      ORDER BY ppl.created_at DESC
+      LIMIT 30
+    `).all();
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { logAction } = require('../audit');
+const { syncToSupabase, deleteFromSupabase, updateSupabase } = require('../supabaseSync');
 
 // 1. GET ALL QUOTATIONS
 router.get('/', requireAuth, (req, res) => {
@@ -53,14 +55,33 @@ router.post('/', requireAuth, (req, res) => {
       req.user.user_id
     );
 
-    db.prepare(`
-      INSERT INTO audit_log (user_id, device_fingerprint, action, details, status)
-      VALUES (?, ?, 'QUOTATION_CREATED', ?, 'ALLOWED')
-    `).run(req.user.user_id, req.headers['x-device-fingerprint'] || 'unknown', `Created quote ${quoteNumber} for ${customer_name} (KES ${totalAmount})`);
+    const quoteId = Number(info.lastInsertRowid);
+    syncToSupabase('quotations', {
+      quote_id: quoteId,
+      quote_number: quoteNumber,
+      customer_name: customer_name,
+      customer_phone: customer_phone,
+      site_location: site_location || null,
+      total_amount_kes: totalAmount,
+      validity_days: Number(validity_days),
+      expires_at: expiresAt,
+      status: 'Active',
+      items_json: items,
+      notes: notes || null,
+      created_by: req.user.user_id
+    });
+
+    logAction({
+      userId: req.user.user_id,
+      deviceFingerprint: req.headers['x-device-fingerprint'] || 'unknown',
+      action: 'QUOTATION_CREATED',
+      details: `Created quote ${quoteNumber} for ${customer_name} (KES ${totalAmount})`,
+      status: 'ALLOWED'
+    });
 
     res.json({
       ok: true,
-      quote_id: info.lastInsertRowid,
+      quote_id: quoteId,
       quote_number: quoteNumber,
       total_amount_kes: totalAmount,
       expires_at: expiresAt
