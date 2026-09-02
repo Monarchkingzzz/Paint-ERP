@@ -3,15 +3,15 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 require('dotenv').config();
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://jlgnwdbdnmflhqgbnvhd.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const DEFAULT_SUPABASE_URL = 'https://jlgnwdbdnmflhqgbnvhd.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsZ253ZGJkbm1mbGhxZ2JudmhkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4ODMyODAyNSwiZXhwIjoyMTAzOTA0MDI1fQ.i3tWvZ6Qh6ecozQNJHgXeSEAWfZnNbJ2aMdvYDT6F38';
 
 let supabase = null;
 
 function getSupabaseClient() {
   if (supabase) return supabase;
-  const url = process.env.SUPABASE_URL || 'https://jlgnwdbdnmflhqgbnvhd.supabase.co';
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+  const url = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
   if (url && key) {
     supabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false }
@@ -23,9 +23,20 @@ function getSupabaseClient() {
 
 getSupabaseClient();
 
+const PK_MAP = {
+  invoices: 'invoice_id',
+  audit_log: 'log_id',
+  invoice_items: 'item_id',
+  expenses: 'expense_id',
+  mpesa_payments: 'transaction_id',
+  credit_transactions: 'tx_id',
+  quotations: 'quote_id',
+  suppliers: 'supplier_id'
+};
+
 /**
  * Sync single or multiple rows to a Supabase table.
- * Non-blocking with automatic error recovery.
+ * Non-blocking with automatic error recovery and sequence auto-healing.
  */
 async function syncToSupabase(table, records, upsertOnConflict = null) {
   const client = getSupabaseClient();
@@ -36,14 +47,40 @@ async function syncToSupabase(table, records, upsertOnConflict = null) {
     if (data.length === 0) return null;
 
     if (upsertOnConflict) {
-      const { error } = await client.from(table).upsert(data, { onConflict: upsertOnConflict });
+      const { data: res, error } = await client.from(table).upsert(data, { onConflict: upsertOnConflict }).select();
       if (error) console.error(`[Supabase Sync Upsert Error] ${table}:`, error.message);
-    } else {
-      const { error } = await client.from(table).insert(data);
-      if (error) console.error(`[Supabase Sync Insert Error] ${table}:`, error.message);
+      return res;
     }
+
+    let { data: res, error } = await client.from(table).insert(data).select();
+    
+    // Auto-heal primary key collision on ephemeral serverless cold-starts
+    if (error && (error.message.includes('unique constraint') || error.message.includes('duplicate key')) && PK_MAP[table]) {
+      const pk = PK_MAP[table];
+      try {
+        const { data: topRows } = await client.from(table).select(pk).order(pk, { ascending: false }).limit(1);
+        let nextId = (topRows && topRows.length && typeof topRows[0][pk] === 'number' ? topRows[0][pk] : 0) + 1;
+        
+        const fixedData = data.map(item => ({
+          ...item,
+          [pk]: nextId++
+        }));
+        const retry = await client.from(table).insert(fixedData).select();
+        if (retry.error) {
+          console.error(`[Supabase Sync Retry Error] ${table}:`, retry.error.message);
+        } else {
+          return retry.data;
+        }
+      } catch (retryErr) {
+        console.error(`[Supabase Auto-Heal Exception] ${table}:`, retryErr.message);
+      }
+    } else if (error) {
+      console.error(`[Supabase Sync Insert Error] ${table}:`, error.message);
+    }
+    return res;
   } catch (err) {
     console.error(`[Supabase Sync Exception] ${table}:`, err.message);
+    return null;
   }
 }
 
