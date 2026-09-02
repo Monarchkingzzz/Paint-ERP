@@ -352,7 +352,7 @@ aside.sidebar {
 .topbar-header {
   background: var(--bg-topbar);
   border-bottom: 1px solid var(--border-light);
-  padding: 0.75rem 1.8rem;
+  padding: 0.65rem 1.6rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -364,7 +364,7 @@ aside.sidebar {
   gap: 1rem;
 }
 .page-breadcrumb {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
 }
 .page-breadcrumb .page-title-text {
@@ -373,15 +373,16 @@ aside.sidebar {
   color: var(--text-primary);
   letter-spacing: -0.3px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: block;
 }
 .topbar-actions {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.45rem;
   flex-shrink: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .online-pill {
   display: flex;

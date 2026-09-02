@@ -273,14 +273,14 @@ function updateTopBarAlertPill() {
     container.innerHTML = `
       <div class="stock-alert-pill" onclick="showLowStockModal()" title="Click to view ${count} low stock items">
         <span class="pulse-dot-danger"></span>
-        <span>⚠️ ${count} Low Stock Item${count === 1 ? '' : 's'}</span>
+        <span>⚠️ ${count} Low Stock</span>
       </div>
     `;
   } else {
     container.innerHTML = `
       <div class="stock-alert-pill ok" onclick="showLowStockModal()" title="All stock levels are optimal">
         <span class="pulse-dot-success"></span>
-        <span>✅ Stock Healthy</span>
+        <span>✅ Stock OK</span>
       </div>
     `;
   }
@@ -661,17 +661,14 @@ function renderShell() {
 
         <!-- Sidebar Footer User Card -->
         <div class="sidebar-footer">
-          <div class="user-profile-card" id="btn-open-profile" title="View Profile & Security PINs">
+          <div class="user-profile-card" id="btn-open-profile" title="View Profile & Security PINs" style="flex: 1; min-width: 0;">
             <div class="user-avatar">${(state.user.full_name || 'U').slice(0, 2).toUpperCase()}</div>
-            <div class="user-details">
-              <div class="user-name">${state.user.full_name}</div>
+            <div class="user-details" style="flex: 1; min-width: 0;">
+              <div class="user-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(state.user.full_name)}">${state.user.full_name}</div>
               <div class="user-role-badge">${isOwner ? '👑 STORE OWNER' : '⚡ ATTENDANT'}</div>
             </div>
           </div>
           <div class="sidebar-footer-actions">
-            <button id="btn-profile-gear" class="btn-icon-sidebar" title="User Profile & Security PINs">
-              ${Icons.user}
-            </button>
             <button id="logout-btn" class="btn-icon-sidebar logout" title="Sign Out">
               ${Icons.logout}
             </button>
@@ -689,20 +686,20 @@ function renderShell() {
             <!-- Low Stock Real-Time Indicator -->
             <div id="stock-alert-container"></div>
 
-            <div class="online-pill" id="network-status-pill">
+            <div class="online-pill" id="network-status-pill" title="Live real-time server and cloud connection">
               <span class="pulse-dot"></span>
-              <span id="online-text">Live Sync (Port 4000)</span>
+              <span id="online-text">Live Sync</span>
             </div>
             ${isOwner ? `
-              <button class="btn btn-secondary btn-sm" onclick="showMpesaConfigModal()" style="display:inline-flex; align-items:center; gap:0.4rem; background:#ecfdf5; border-color:#a7f3d0; color:#065f46; font-weight:700;">
-                📱 Daraja M-Pesa Setup
+              <button class="btn btn-secondary btn-sm" onclick="showMpesaConfigModal()" style="display:inline-flex; align-items:center; gap:0.35rem; background:#ecfdf5; border-color:#a7f3d0; color:#065f46; font-weight:700; padding:0.4rem 0.75rem;">
+                📱 M-Pesa Setup
               </button>
             ` : ''}
-            <button class="btn btn-secondary btn-sm" onclick="showBulkImportModal()" style="display:inline-flex; align-items:center; gap:0.4rem; background:#fffbeb; border-color:#fde68a; color:#92400e;">
-              📥 Fandecks &amp; Catalog (1,000+)
+            <button class="btn btn-secondary btn-sm" onclick="showBulkImportModal()" style="display:inline-flex; align-items:center; gap:0.35rem; background:#fffbeb; border-color:#fde68a; color:#92400e; padding:0.4rem 0.75rem;">
+              📥 Fandecks
             </button>
-            <button class="btn btn-secondary btn-sm" onclick="showUserProfileModal()" style="display:inline-flex; align-items:center; gap:0.4rem;">
-              ${Icons.user} Profile &amp; PINs
+            <button class="btn btn-secondary btn-sm" onclick="showUserProfileModal()" style="display:inline-flex; align-items:center; gap:0.35rem; padding:0.4rem 0.75rem;">
+              ${Icons.user} Profile
             </button>
           </div>
         </header>
@@ -719,7 +716,6 @@ function renderShell() {
 
   document.getElementById('logout-btn').addEventListener('click', logout);
   document.getElementById('btn-open-profile').addEventListener('click', showUserProfileModal);
-  document.getElementById('btn-profile-gear').addEventListener('click', showUserProfileModal);
 
   updateTopBarAlertPill();
   checkStockAlerts();
@@ -739,8 +735,15 @@ function showView(viewName) {
   if (breadcrumb) {
     breadcrumb.innerHTML = `<span class="page-title-text">${getPageTitle(viewName)}</span>`;
   }
+  
+  // Unconditionally reset scroll position to top of page
+  const mainVp = document.querySelector('.main-viewport');
+  if (mainVp) mainVp.scrollTop = 0;
+  window.scrollTo(0, 0);
+
   const container = document.getElementById('view-container');
   if (!container) return;
+  container.scrollTop = 0;
 
   switch (viewName) {
     case 'dashboard': renderDashboardView(container); break;
@@ -4337,73 +4340,75 @@ async function renderQuotesView(container) {
     }
 
     box.innerHTML = `
-      <table class="quote-premium-table">
-        <thead>
-          <tr>
-            <th style="width: 140px;">QUOTE #</th>
-            <th>CUSTOMER / CONTRACTOR</th>
-            <th>SITE LOCATION</th>
-            <th>TOTAL AMOUNT</th>
-            <th>PRICE LOCK STATUS</th>
-            <th style="text-align:right;">ACTIONS</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${list.map((q) => {
-            const isExpired = new Date(q.expires_at) < new Date() && q.status === 'Active';
-            return `
-              <tr>
-                <td>
-                  <strong style="font-size:0.92rem; color:#0f172a; letter-spacing:0.3px; white-space:nowrap;">
-                    ${q.quote_number}
-                  </strong>
-                </td>
-                <td>
-                  <div style="font-weight:700; color:#0f172a; font-size:0.9rem;">
-                    ${escapeHtml(q.customer_name)}
-                  </div>
-                  <div style="font-size:0.78rem; color:#64748b; margin-top:2px;">
-                    📞 ${escapeHtml(q.customer_phone || 'No phone')}
-                  </div>
-                </td>
-                <td>
-                  <div style="font-size:0.86rem; color:#334155; font-weight:600;">
-                    📍 ${escapeHtml(q.site_location || 'On-site collection')}
-                  </div>
-                </td>
-                <td>
-                  <strong style="font-size:0.95rem; color:#0f172a; white-space:nowrap;">
-                    KSh ${fmt(q.total_amount_kes)}
-                  </strong>
-                </td>
-                <td>
-                  ${q.status === 'Converted' ? `<span class="status-pill paid" style="font-size:0.75rem; font-weight:800;">✅ CONVERTED</span>` :
-                    isExpired ? `<span class="status-pill failed" style="font-size:0.75rem; font-weight:800;">⚠️ LOCK EXPIRED</span>` :
-                    `<span class="status-pill pending" style="font-size:0.75rem; font-weight:800; background:#fef3c7; color:#92400e; border:1px solid #fde68a;">🔒 14-DAY LOCK</span>`}
-                </td>
-                <td style="text-align:right;">
-                  <div style="display:inline-flex; align-items:center; gap:0.35rem; justify-content:flex-end;">
-                    <button data-id="${q.quote_id}" class="btn-view-quote btn btn-secondary btn-sm" style="padding:0.28rem 0.65rem; font-size:0.78rem; font-weight:700;">
-                      View
-                    </button>
-                    <button data-id="${q.quote_id}" class="btn-pdf-quote btn btn-secondary btn-sm" style="padding:0.28rem 0.65rem; font-size:0.78rem; font-weight:700; color:#b45309; border-color:#fde68a; background:#fffbeb;" title="Download Pro-Forma PDF">
-                      📥 PDF
-                    </button>
-                    ${q.status === 'Active' && !isExpired ? `
-                      <button data-id="${q.quote_id}" class="btn-convert-quote btn btn-primary btn-sm" style="padding:0.28rem 0.65rem; font-size:0.78rem; font-weight:800; background:#0f172a; color:#f59e0b; border-color:#0f172a;">
-                        Convert
+      <div class="table-responsive" style="width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch;">
+        <table class="quote-premium-table">
+          <thead>
+            <tr>
+              <th style="width: 130px; white-space: nowrap;">QUOTE #</th>
+              <th style="white-space: nowrap;">CUSTOMER / CONTRACTOR</th>
+              <th style="white-space: nowrap;">SITE LOCATION</th>
+              <th style="white-space: nowrap;">TOTAL AMOUNT</th>
+              <th style="white-space: nowrap;">PRICE LOCK STATUS</th>
+              <th style="text-align:right; min-width: 190px; white-space: nowrap;">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map((q) => {
+              const isExpired = new Date(q.expires_at) < new Date() && q.status === 'Active';
+              return `
+                <tr>
+                  <td>
+                    <strong style="font-size:0.92rem; color:#0f172a; letter-spacing:0.3px; white-space:nowrap;">
+                      ${q.quote_number}
+                    </strong>
+                  </td>
+                  <td>
+                    <div style="font-weight:700; color:#0f172a; font-size:0.9rem; white-space:nowrap;">
+                      ${escapeHtml(q.customer_name)}
+                    </div>
+                    <div style="font-size:0.78rem; color:#64748b; margin-top:2px; white-space:nowrap;">
+                      📞 ${escapeHtml(q.customer_phone || 'No phone')}
+                    </div>
+                  </td>
+                  <td>
+                    <div style="font-size:0.86rem; color:#334155; font-weight:600;">
+                      📍 ${escapeHtml(q.site_location || 'On-site collection')}
+                    </div>
+                  </td>
+                  <td>
+                    <strong style="font-size:0.95rem; color:#0f172a; white-space:nowrap;">
+                      KSh ${fmt(q.total_amount_kes)}
+                    </strong>
+                  </td>
+                  <td>
+                    ${q.status === 'Converted' ? `<span class="status-pill paid" style="font-size:0.75rem; font-weight:800; white-space:nowrap;">✅ CONVERTED</span>` :
+                      isExpired ? `<span class="status-pill failed" style="font-size:0.75rem; font-weight:800; white-space:nowrap;">⚠️ LOCK EXPIRED</span>` :
+                      `<span class="status-pill pending" style="font-size:0.75rem; font-weight:800; background:#fef3c7; color:#92400e; border:1px solid #fde68a; white-space:nowrap;">🔒 14-DAY LOCK</span>`}
+                  </td>
+                  <td style="text-align:right;">
+                    <div style="display:inline-flex; align-items:center; gap:0.35rem; justify-content:flex-end; white-space:nowrap;">
+                      <button data-id="${q.quote_id}" class="btn-view-quote btn btn-secondary btn-sm" style="padding:0.28rem 0.65rem; font-size:0.78rem; font-weight:700;">
+                        View
                       </button>
-                    ` : ''}
-                    <button data-id="${q.quote_id}" data-num="${q.quote_number}" class="btn-delete-quote btn btn-danger btn-sm" style="padding:0.28rem 0.5rem; font-size:0.78rem; background:#fee2e2; color:#dc2626; border:1px solid #fecaca;" title="Delete Quote (PIN Required)">
-                      🗑️
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
+                      <button data-id="${q.quote_id}" class="btn-pdf-quote btn btn-secondary btn-sm" style="padding:0.28rem 0.65rem; font-size:0.78rem; font-weight:700; color:#b45309; border-color:#fde68a; background:#fffbeb;" title="Download Pro-Forma PDF">
+                        📥 PDF
+                      </button>
+                      ${q.status === 'Active' && !isExpired ? `
+                        <button data-id="${q.quote_id}" class="btn-convert-quote btn btn-primary btn-sm" style="padding:0.28rem 0.65rem; font-size:0.78rem; font-weight:800; background:#0f172a; color:#f59e0b; border-color:#0f172a;">
+                          Convert
+                        </button>
+                      ` : ''}
+                      <button data-id="${q.quote_id}" data-num="${q.quote_number}" class="btn-delete-quote btn btn-danger btn-sm" style="padding:0.28rem 0.5rem; font-size:0.78rem; background:#fee2e2; color:#dc2626; border:1px solid #fecaca;" title="Delete Quote (PIN Required)">
+                        🗑️
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
     `;
 
     box.querySelectorAll('.btn-view-quote').forEach((btn) => {
