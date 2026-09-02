@@ -215,6 +215,15 @@ router.post('/clear-all', requireAuth, (req, res) => {
       VALUES (?, ?, 'AUDIT_LOGS_RESET', ?, 'ALLOWED')
     `).run(req.user.user_id, req.headers['x-device-fingerprint'] || 'unknown', `Audit trail wiped and reset by ${check.authorizedBy} (${req.user.system_role}). Cleared ${totalCount} previous events.`);
 
+    res.json({
+      ok: true,
+      message: `Successfully cleared all ${totalCount} audit log records. New clean trail started.`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/audit/sync-supabase (Owner only - push all local tables to Supabase cloud)
 router.post('/sync-supabase', requireAuth, requireOwner, async (req, res) => {
   const { syncAllToSupabase } = require('../supabaseSync');
