@@ -3,13 +3,216 @@ const router = express.Router();
 const { db } = require('../db');
 const { requireAuth, requireOwner } = require('../middleware/auth');
 const { logAction } = require('../audit');
+const { getSupabaseClient } = require('../supabaseSync');
 
 // 1. GET /api/reports/dashboard-overview (Real-time store dashboard for Owner & Staff)
-router.get('/dashboard-overview', requireAuth, (req, res) => {
+router.get('/dashboard-overview', requireAuth, async (req, res) => {
   try {
     const isOwner = req.user.system_role === 'Owner';
     const now = new Date();
     const currentMonthStr = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth();
+    const todayStr = now.toISOString().slice(0, 10);
+
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        const [
+          invsRes,
+          itemsRes,
+          expRes,
+          prodRes,
+          baseRes,
+          pigRes,
+          creditRes,
+          supRes,
+          auditRes
+        ] = await Promise.all([
+          client.from('invoices').select('*, store_users(full_name)').order('created_at', { ascending: false }),
+          client.from('invoice_items').select('*'),
+          client.from('expenses').select('*').order('created_at', { ascending: false }),
+          client.from('products').select('*'),
+          client.from('stock_base_tins').select('*'),
+          client.from('stock_pigments').select('*'),
+          client.from('credit_accounts').select('*'),
+          client.from('suppliers').select('*'),
+          client.from('audit_log').select('*, store_users(full_name, system_role)').order('timestamp', { ascending: false }).limit(6)
+        ]);
+
+        if (!invsRes.error && !itemsRes.error) {
+          const invoices = invsRes.data || [];
+          const items = itemsRes.data || [];
+          const expenses = expRes.data || [];
+          const products = prodRes.data || [];
+          const baseTins = baseRes.data || [];
+          const pigments = pigRes.data || [];
+          const creditAccounts = creditRes.data || [];
+          const suppliers = supRes.data || [];
+          const auditLogs = auditRes.data || [];
+
+          const itemsByInvoice = {};
+          items.forEach(it => {
+            if (!itemsByInvoice[it.invoice_id]) itemsByInvoice[it.invoice_id] = [];
+            itemsByInvoice[it.invoice_id].push(it);
+          });
+
+          let salesThisMonth = 0;
+          let ordersThisMonth = 0;
+          let salesToday = 0;
+          let ordersToday = 0;
+          let cogsThisMonth = 0;
+
+          const prodProfitMap = {};
+
+          invoices.forEach(inv => {
+            if (inv.status !== 'Paid') return;
+            const invDate = new Date(inv.created_at || now);
+            const isThisMonth = invDate.getUTCFullYear() === currentYear && invDate.getUTCMonth() === currentMonth;
+            const isToday = (inv.created_at || '').slice(0, 10) === todayStr;
+
+            const amt = Number(inv.total_kes) || 0;
+            if (isThisMonth) {
+              salesThisMonth += amt;
+              ordersThisMonth++;
+              const invItems = itemsByInvoice[inv.invoice_id] || [];
+              invItems.forEach(it => {
+                const itemQty = Number(it.quantity) || 1;
+                const itemPrice = Number(it.unit_price_kes) || 0;
+                const itemCost = Number(it.line_cost_kes) || 0;
+                const lineCogs = itemCost * itemQty;
+                cogsThisMonth += lineCogs;
+
+                const name = it.description || 'Custom Paint / Hardware';
+                if (!prodProfitMap[name]) {
+                  prodProfitMap[name] = { name, units_sold: 0, revenue_kes: 0, profit_kes: 0 };
+                }
+                prodProfitMap[name].units_sold += itemQty;
+                prodProfitMap[name].revenue_kes += itemPrice * itemQty;
+                prodProfitMap[name].profit_kes += (itemPrice - itemCost) * itemQty;
+              });
+            }
+            if (isToday) {
+              salesToday += amt;
+              ordersToday++;
+            }
+          });
+
+          let expensesThisMonth = 0;
+          expenses.forEach(exp => {
+            const expDate = new Date(exp.created_at || now);
+            if (expDate.getUTCFullYear() === currentYear && expDate.getUTCMonth() === currentMonth) {
+              expensesThisMonth += Number(exp.amount_kes) || 0;
+            }
+          });
+
+          const grossProfit = salesThisMonth - cogsThisMonth;
+          const netProfit = grossProfit - expensesThisMonth;
+          const netMarginPct = salesThisMonth > 0 ? (netProfit / salesThisMonth) * 100 : 0;
+
+          // Stock valuation
+          let totalCostWorth = 0;
+          let totalRetailWorth = 0;
+          products.forEach(p => {
+            const qty = Number(p.quantity_in_stock) || 0;
+            totalCostWorth += (Number(p.unit_cost_kes) || 0) * qty;
+            totalRetailWorth += (Number(p.unit_price_kes) || 0) * qty;
+          });
+          baseTins.forEach(b => {
+            const qty = Number(b.quantity_in_stock) || 0;
+            const cost = Number(b.unit_cost_kes) || 0;
+            totalCostWorth += cost * qty;
+            totalRetailWorth += (cost * 1.45) * qty;
+          });
+          pigments.forEach(pig => {
+            const qty = Number(pig.quantity_ml) || 0;
+            const cost = (Number(pig.unit_cost_per_ml_kes) || 0) * qty;
+            totalCostWorth += cost;
+            totalRetailWorth += cost * 1.6;
+          });
+          const totalStockItems = products.length + baseTins.length + pigments.length;
+
+          // Customer Credit
+          const activeCreditAccs = creditAccounts.filter(c => (Number(c.current_balance_kes) || 0) > 0);
+          const totalCreditDebt = activeCreditAccs.reduce((sum, c) => sum + (Number(c.current_balance_kes) || 0), 0);
+
+          // Supplier Payables
+          const activeSuppliers = suppliers.filter(s => (Number(s.current_balance_kes) || 0) > 0);
+          const totalSupplierPayables = activeSuppliers.reduce((sum, s) => sum + (Number(s.current_balance_kes) || 0), 0);
+
+          // Top products
+          const topProducts = Object.values(prodProfitMap)
+            .sort((a, b) => b.profit_kes - a.profit_kes)
+            .slice(0, 5);
+
+          // Low stock items
+          const lowStockList = [];
+          products.forEach(p => {
+            if (p.quantity_in_stock <= p.low_stock_threshold) {
+              lowStockList.push({ name: p.product_name, current_qty: p.quantity_in_stock, low_stock_threshold: p.low_stock_threshold, unit: 'piece', type: 'hardware' });
+            }
+          });
+          baseTins.forEach(b => {
+            if (b.quantity_in_stock <= b.low_stock_threshold) {
+              lowStockList.push({ name: `${b.manufacturer || ''} ${b.base_name || ''} ${b.tin_size_litres || ''}L`, current_qty: b.quantity_in_stock, low_stock_threshold: b.low_stock_threshold, unit: 'tin', type: 'base' });
+            }
+          });
+          pigments.forEach(pig => {
+            if (pig.quantity_ml <= pig.low_stock_threshold_ml) {
+              lowStockList.push({ name: `${pig.pigment_name} (${pig.pigment_code})`, current_qty: pig.quantity_ml, low_stock_threshold: pig.low_stock_threshold_ml, unit: 'ml', type: 'pigment' });
+            }
+          });
+          lowStockList.sort((a, b) => a.current_qty - b.current_qty);
+
+          // Recent Audit Logs
+          const recentLogs = auditLogs.map(a => ({
+            log_id: a.log_id,
+            action: a.action,
+            details: a.details,
+            timestamp: a.timestamp,
+            operator_name: (a.store_users && a.store_users.full_name) || (a.user_id === 1 ? 'Store Owner' : 'Shop Staff'),
+            operator_role: (a.store_users && a.store_users.system_role) || (a.user_id === 1 ? 'Owner' : 'Cashier')
+          }));
+
+          return res.json({
+            month_label: currentMonthStr,
+            is_owner: isOwner,
+            sales_this_month_kes: salesThisMonth,
+            orders_count_this_month: ordersThisMonth,
+            sales_today_kes: salesToday,
+            orders_count_today: ordersToday,
+            cogs_this_month_kes: cogsThisMonth,
+            expenses_this_month_kes: expensesThisMonth,
+            gross_profit_this_month_kes: grossProfit,
+            net_profit_this_month_kes: netProfit,
+            net_margin_pct: Number(netMarginPct.toFixed(1)),
+            stock_valuation: {
+              total_items_tracked: totalStockItems,
+              total_cost_worth_kes: Math.round(totalCostWorth),
+              total_retail_worth_kes: Math.round(totalRetailWorth),
+              potential_profit_kes: Math.round(totalRetailWorth - totalCostWorth)
+            },
+            customer_credit: {
+              total_debt_kes: totalCreditDebt,
+              debtors_count: activeCreditAccs.length
+            },
+            supplier_payables: {
+              total_payable_kes: totalSupplierPayables,
+              suppliers_count: activeSuppliers.length
+            },
+            cash_accounts: [
+              { account_id: 1, account_name: 'Main Cash Drawer', account_type: 'Cash Drawer', balance_kes: 0 },
+              { account_id: 2, account_name: 'M-Pesa Buy Goods Till', account_type: 'M-Pesa Till', balance_kes: salesThisMonth }
+            ],
+            top_products: topProducts,
+            low_stock_items: lowStockList.slice(0, 6),
+            recent_audit_logs: recentLogs
+          });
+        }
+      } catch (sbErr) {
+        console.error('Supabase dashboard overview error, falling back to SQLite:', sbErr.message);
+      }
+    }
 
     // 1. Sales - This Month
     const salesThisMonth = db.prepare(`
@@ -167,8 +370,49 @@ router.get('/dashboard-overview', requireAuth, (req, res) => {
 });
 
 // 2. GET /api/reports/sales - Staff see their sales, Owner sees all (with itemized breakdown)
-router.get('/sales', requireAuth, (req, res) => {
+router.get('/sales', requireAuth, async (req, res) => {
   try {
+    const client = getSupabaseClient();
+    if (client) {
+      try {
+        let invQuery = client.from('invoices').select('*, store_users(full_name)').order('created_at', { ascending: false }).limit(300);
+        if (req.user.system_role !== 'Owner') {
+          invQuery = invQuery.eq('created_by', req.user.user_id);
+        }
+
+        const [invsRes, itemsRes] = await Promise.all([
+          invQuery,
+          client.from('invoice_items').select('*')
+        ]);
+
+        if (!invsRes.error && !itemsRes.error) {
+          const invoices = invsRes.data || [];
+          const items = itemsRes.data || [];
+
+          const itemsByInvoice = {};
+          items.forEach(it => {
+            if (!itemsByInvoice[it.invoice_id]) itemsByInvoice[it.invoice_id] = [];
+            itemsByInvoice[it.invoice_id].push({
+              ...it,
+              line_total: (Number(it.quantity) || 1) * (Number(it.unit_price_kes) || 0)
+            });
+          });
+
+          const result = invoices.map(inv => ({
+            ...inv,
+            total_amount_kes: inv.total_kes,
+            served_by: (inv.store_users && inv.store_users.full_name) || (inv.created_by === 1 ? 'Store Owner' : 'Shop Staff'),
+            invoice_number: `INV-2026-${String(inv.invoice_id).padStart(4, '0')}`,
+            items: itemsByInvoice[inv.invoice_id] || []
+          }));
+
+          return res.json(result);
+        }
+      } catch (sbErr) {
+        console.error('Supabase sales error, falling back to SQLite:', sbErr.message);
+      }
+    }
+
     let invoices;
     if (req.user.system_role === 'Owner') {
       invoices = db.prepare(`
@@ -414,15 +658,31 @@ router.get('/center-overview', requireAuth, requireOwner, (req, res) => {
 });
 
 // 3. GET /api/reports/credit (Owner only) - Customer Credit list
-router.get('/credit', requireAuth, requireOwner, (req, res) => {
-  const accounts = db.prepare(`
-    SELECT ca.*,
-      (SELECT COUNT(*) FROM credit_transactions ct WHERE ct.account_id = ca.account_id) AS transaction_count,
-      (SELECT MAX(created_at) FROM credit_transactions ct WHERE ct.account_id = ca.account_id) AS last_tx_date
-    FROM credit_accounts ca
-    ORDER BY ca.current_balance_kes DESC, ca.fundi_name ASC
-  `).all();
-  res.json(accounts);
+router.get('/credit', requireAuth, requireOwner, async (req, res) => {
+  try {
+    const client = getSupabaseClient();
+    if (client) {
+      const { data: accounts, error } = await client
+        .from('credit_accounts')
+        .select('*')
+        .order('current_balance_kes', { ascending: false });
+
+      if (!error && accounts) {
+        return res.json(accounts);
+      }
+    }
+
+    const accounts = db.prepare(`
+      SELECT ca.*,
+        (SELECT COUNT(*) FROM credit_transactions ct WHERE ct.account_id = ca.account_id) AS transaction_count,
+        (SELECT MAX(created_at) FROM credit_transactions ct WHERE ct.account_id = ca.account_id) AS last_tx_date
+      FROM credit_accounts ca
+      ORDER BY ca.current_balance_kes DESC, ca.fundi_name ASC
+    `).all();
+    res.json(accounts);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // 4. POST /api/reports/credit/account (Owner only) - Add new customer credit account
