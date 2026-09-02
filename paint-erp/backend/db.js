@@ -5,20 +5,24 @@ const { DatabaseSync } = require('node:sqlite');
 const crypto = require('crypto');
 const { parse } = require('csv-parse/sync');
 
+const os = require('os');
+
 let DB_PATH = path.join(__dirname, 'paint_erp.db');
 
-// In Vercel serverless environment, /var/task is read-only.
-// Copy DB to /tmp for full read/write support.
+// In Vercel / serverless environment, filesystem is read-only except os.tmpdir()
 if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-  const tmpPath = path.join('/tmp', 'paint_erp.db');
+  const tmpDir = os.tmpdir();
+  const tmpPath = path.join(tmpDir, 'paint_erp.db');
   try {
-    if (!fs.existsSync(tmpPath) && fs.existsSync(DB_PATH)) {
-      fs.copyFileSync(DB_PATH, tmpPath);
+    if (!fs.existsSync(tmpPath)) {
+      if (fs.existsSync(DB_PATH)) {
+        fs.copyFileSync(DB_PATH, tmpPath);
+      }
     }
   } catch (e) {
-    console.error('Error preparing DB in /tmp:', e);
+    console.error('Error preparing DB in tmpdir:', e);
   }
-  DB_PATH = fs.existsSync(tmpPath) ? tmpPath : DB_PATH;
+  DB_PATH = tmpPath;
 }
 
 const db = new DatabaseSync(DB_PATH);
