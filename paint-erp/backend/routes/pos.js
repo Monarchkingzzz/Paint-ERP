@@ -8,154 +8,180 @@ const { syncToSupabase } = require('../supabaseSync');
 
 // Helper to handle invoice/checkout logic
 function processCheckout(req, res) {
-  let { customer_phone, payment_method, mpesa_receipt_code, items, lines } = req.body;
-  const rawItems = items || lines;
-  if (!payment_method || !Array.isArray(rawItems) || rawItems.length === 0) {
-    return res.status(400).json({ error: 'payment_method and a non-empty items[] are required.' });
-  }
-
-  // Normalize payment method to DB CHECK constraint values ('Mpesa', 'Cash', 'Credit')
-  let dbPaymentMethod = payment_method;
-  if (payment_method.toLowerCase().includes('mpesa') || payment_method.toLowerCase().includes('m-pesa')) {
-    dbPaymentMethod = 'Mpesa';
-  } else if (payment_method.toLowerCase().includes('credit')) {
-    dbPaymentMethod = 'Credit';
-  } else {
-    dbPaymentMethod = 'Cash';
-  }
-
-  const total = rawItems.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unit_price_kes) || 0), 0);
-
-  let creditAccount = null;
-  if (dbPaymentMethod === 'Credit') {
-    if (!customer_phone) {
-      return res.status(400).json({ error: 'Customer phone number is required for Fundi Credit payment.' });
+  try {
+    let { customer_phone, payment_method, mpesa_receipt_code, items, lines } = req.body;
+    const rawItems = items || lines;
+    if (!payment_method || !Array.isArray(rawItems) || rawItems.length === 0) {
+      return res.status(400).json({ error: 'payment_method and a non-empty items[] are required.' });
     }
-    creditAccount = db.prepare('SELECT * FROM credit_accounts WHERE phone_number = ?').get(customer_phone.trim());
-    if (!creditAccount) {
-      return res.status(400).json({
-        error: `No approved credit account found for phone ${customer_phone}. Register account first under Owner P&L/Credit tab.`
-      });
+
+    // Normalize payment method to DB CHECK constraint values ('Mpesa', 'Cash', 'Credit')
+    let dbPaymentMethod = payment_method;
+    if (payment_method.toLowerCase().includes('mpesa') || payment_method.toLowerCase().includes('m-pesa')) {
+      dbPaymentMethod = 'Mpesa';
+    } else if (payment_method.toLowerCase().includes('credit')) {
+      dbPaymentMethod = 'Credit';
+    } else {
+      dbPaymentMethod = 'Cash';
     }
-    const newBalance = creditAccount.current_balance_kes + total;
-    if (newBalance > creditAccount.credit_limit_kes) {
-      return res.status(400).json({
-        error: `Credit limit exceeded for ${creditAccount.fundi_name}. Limit: KES ${creditAccount.credit_limit_kes.toLocaleString()}, Current Balance: KES ${creditAccount.current_balance_kes.toLocaleString()}, Invoice Total: KES ${total.toLocaleString()}.`
-      });
+
+    const total = rawItems.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.unit_price_kes) || 0), 0);
+
+    let creditAccount = null;
+    if (dbPaymentMethod === 'Credit') {
+      if (!customer_phone) {
+        return res.status(400).json({ error: 'Customer phone number is required for Fundi Credit payment.' });
+      }
+      creditAccount = db.prepare('SELECT * FROM credit_accounts WHERE phone_number = ?').get(customer_phone.trim());
+      if (!creditAccount) {
+        return res.status(400).json({
+          error: `No approved credit account found for phone ${customer_phone}. Register account first under Owner P&L/Credit tab.`
+        });
+      }
+      const newBalance = creditAccount.current_balance_kes + total;
+      if (newBalance > creditAccount.credit_limit_kes) {
+        return res.status(400).json({
+          error: `Credit limit exceeded for ${creditAccount.fundi_name}. Limit: KES ${creditAccount.credit_limit_kes.toLocaleString()}, Current Balance: KES ${creditAccount.current_balance_kes.toLocaleString()}, Invoice Total: KES ${total.toLocaleString()}.`
+        });
+      }
     }
-  }
 
-  const initialStatus = (dbPaymentMethod === 'Cash' || dbPaymentMethod === 'Credit' || (dbPaymentMethod === 'Mpesa' && mpesa_receipt_code)) ? 'Paid' : 'Pending';
+    const initialStatus = (dbPaymentMethod === 'Cash' || dbPaymentMethod === 'Credit' || (dbPaymentMethod === 'Mpesa' && mpesa_receipt_code)) ? 'Paid' : 'Pending';
 
-  const createInvoice = db.transaction(() => {
-    const info = db.prepare(`
-      INSERT INTO invoices (created_by, customer_phone, payment_method, total_kes, status)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(req.user.user_id, customer_phone || null, dbPaymentMethod, total, initialStatus);
+    const createInvoice = db.transaction(() => {
+      const info = db.prepare(`
+        INSERT INTO invoices (created_by, customer_phone, payment_method, total_kes, status)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(req.user.user_id, customer_phone || null, dbPaymentMethod, total, initialStatus);
 
-    const invoiceId = info.lastInsertRowid;
-    const insertItem = db.prepare(`
-      INSERT INTO invoice_items (invoice_id, description, paint_pin, product_id, quantity, unit_price_kes, line_cost_kes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+      const invoiceId = info.lastInsertRowid;
+      const insertItem = db.prepare(`
+        INSERT INTO invoice_items (invoice_id, description, paint_pin, product_id, quantity, unit_price_kes, line_cost_kes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `);
 
-    for (const item of rawItems) {
-      let cost = Number(item.line_cost_kes) || 0;
+      for (const item of rawItems) {
+        let cost = Number(item.line_cost_kes) || 0;
+        let validProdId = null;
+        let validPin = null;
 
-      // Deduct hardware product stock & populate cost if missing
-      if (item.product_id) {
-        const prod = db.prepare('SELECT * FROM products WHERE product_id = ?').get(item.product_id);
-        if (prod) {
-          if (!cost) cost = prod.unit_cost_kes;
-          db.prepare('UPDATE products SET quantity_in_stock = quantity_in_stock - ? WHERE product_id = ?')
-            .run(item.quantity, item.product_id);
+        // Safely check hardware product stock
+        if (item.product_id) {
+          try {
+            const prod = db.prepare('SELECT * FROM products WHERE product_id = ?').get(item.product_id);
+            if (prod) {
+              validProdId = prod.product_id;
+              if (!cost) cost = prod.unit_cost_kes;
+              db.prepare('UPDATE products SET quantity_in_stock = quantity_in_stock - ? WHERE product_id = ?')
+                .run(item.quantity, item.product_id);
+            }
+          } catch (pErr) {}
         }
+
+        // Safely check paint PIN validity
+        if (item.paint_pin) {
+          try {
+            const pinRow = db.prepare('SELECT paint_pin FROM paint_pin_ledger WHERE paint_pin = ?').get(item.paint_pin);
+            if (pinRow) validPin = pinRow.paint_pin;
+          } catch (pnErr) {}
+        }
+
+        insertItem.run(
+          invoiceId,
+          item.description || 'Item',
+          validPin,
+          validProdId,
+          Number(item.quantity) || 1,
+          Number(item.unit_price_kes) || 0,
+          cost
+        );
       }
 
-      insertItem.run(
-        invoiceId,
-        item.description || 'Item',
-        item.paint_pin || null,
-        item.product_id || null,
-        item.quantity,
-        item.unit_price_kes,
-        cost
-      );
-    }
-
-    // If Cash payment, credit cash drawer
-    if (dbPaymentMethod === 'Cash') {
-      db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'Cash Drawer'").run(total);
-    }
-
-    // If M-Pesa payment, credit M-Pesa Till
-    if (dbPaymentMethod === 'Mpesa') {
-      db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(total);
-      if (mpesa_receipt_code) {
+      // If Cash payment, credit cash drawer
+      if (dbPaymentMethod === 'Cash') {
         try {
-          db.prepare("UPDATE mpesa_payments SET invoice_id = ?, payment_status = 'Completed' WHERE mpesa_receipt_code = ?").run(invoiceId, mpesa_receipt_code);
+          db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'Cash Drawer'").run(total);
+        } catch (cErr) {}
+      }
+
+      // If M-Pesa payment, credit M-Pesa Till
+      if (dbPaymentMethod === 'Mpesa') {
+        try {
+          db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(total);
+          if (mpesa_receipt_code) {
+            db.prepare("UPDATE mpesa_payments SET invoice_id = ?, payment_status = 'Completed' WHERE mpesa_receipt_code = ?").run(invoiceId, mpesa_receipt_code);
+          }
         } catch (mErr) {}
       }
+
+      // If Credit account, post charge transaction and update balance
+      if (dbPaymentMethod === 'Credit' && creditAccount) {
+        try {
+          db.prepare(`
+            INSERT INTO credit_transactions (account_id, invoice_id, amount_kes, tx_type)
+            VALUES (?, ?, ?, 'Charge')
+          `).run(creditAccount.account_id, invoiceId, total);
+
+          db.prepare('UPDATE credit_accounts SET current_balance_kes = current_balance_kes + ? WHERE account_id = ?')
+            .run(total, creditAccount.account_id);
+        } catch (crErr) {}
+      }
+
+      return invoiceId;
+    });
+
+    const invoiceId = createInvoice();
+
+    // Real-time Supabase sync for invoice & items
+    try {
+      syncToSupabase('invoices', {
+        invoice_id: Number(invoiceId),
+        created_by: req.user.user_id,
+        customer_phone: customer_phone || null,
+        payment_method: dbPaymentMethod,
+        total_kes: total,
+        status: initialStatus
+      });
+
+      const supabaseItems = rawItems.map(item => ({
+        invoice_id: Number(invoiceId),
+        description: item.description || 'Item',
+        paint_pin: item.paint_pin || null,
+        product_id: item.product_id ? Number(item.product_id) : null,
+        quantity: Number(item.quantity) || 1,
+        unit_price_kes: Number(item.unit_price_kes) || 0,
+        line_cost_kes: Number(item.line_cost_kes) || 0
+      }));
+      syncToSupabase('invoice_items', supabaseItems);
+    } catch (sErr) {
+      console.error('Supabase sync warning:', sErr.message);
     }
 
-    // If Credit account, post charge transaction and update balance
-    if (dbPaymentMethod === 'Credit' && creditAccount) {
-      db.prepare(`
-        INSERT INTO credit_transactions (account_id, invoice_id, amount_kes, tx_type)
-        VALUES (?, ?, ?, 'Charge')
-      `).run(creditAccount.account_id, invoiceId, total);
+    logAction({
+      userId: req.user.user_id,
+      deviceFingerprint: req.deviceFingerprint,
+      action: 'INVOICE_CREATED',
+      details: `Invoice #${invoiceId} - KES ${total} via ${dbPaymentMethod}${creditAccount ? ` (Fundi: ${creditAccount.fundi_name})` : ''}`,
+      status: 'ALLOWED'
+    });
 
-      db.prepare('UPDATE credit_accounts SET current_balance_kes = current_balance_kes + ? WHERE account_id = ?')
-        .run(total, creditAccount.account_id);
-    }
-
-    return invoiceId;
-  });
-
-  const invoiceId = createInvoice();
-
-  // Real-time Supabase sync for invoice & items
-  syncToSupabase('invoices', {
-    invoice_id: Number(invoiceId),
-    created_by: req.user.user_id,
-    customer_phone: customer_phone || null,
-    payment_method: dbPaymentMethod,
-    total_kes: total,
-    status: initialStatus
-  });
-
-  const supabaseItems = rawItems.map(item => ({
-    invoice_id: Number(invoiceId),
-    description: item.description || 'Item',
-    paint_pin: item.paint_pin || null,
-    product_id: item.product_id ? Number(item.product_id) : null,
-    quantity: Number(item.quantity) || 1,
-    unit_price_kes: Number(item.unit_price_kes) || 0,
-    line_cost_kes: Number(item.line_cost_kes) || 0
-  }));
-  syncToSupabase('invoice_items', supabaseItems);
-
-  logAction({
-    userId: req.user.user_id,
-    deviceFingerprint: req.deviceFingerprint,
-    action: 'INVOICE_CREATED',
-    details: `Invoice #${invoiceId} - KES ${total} via ${dbPaymentMethod}${creditAccount ? ` (Fundi: ${creditAccount.fundi_name})` : ''}`,
-    status: 'ALLOWED'
-  });
-
-  res.json({
-    ok: true,
-    invoice_id: invoiceId,
-    invoice_number: `INV-2026-${String(invoiceId).padStart(4, '0')}`,
-    total_kes: total,
-    total_amount_kes: total,
-    payment_method: dbPaymentMethod,
-    payment_status: initialStatus,
-    status: initialStatus,
-    mpesa_receipt_code: mpesa_receipt_code || null,
-    items: rawItems,
-    credit_account: creditAccount ? { fundi_name: creditAccount.fundi_name, new_balance_kes: creditAccount.current_balance_kes + total } : null
-  });
+    res.json({
+      ok: true,
+      invoice_id: invoiceId,
+      invoice_number: `INV-2026-${String(invoiceId).padStart(4, '0')}`,
+      total_kes: total,
+      total_amount_kes: total,
+      payment_method: dbPaymentMethod,
+      payment_status: initialStatus,
+      status: initialStatus,
+      mpesa_receipt_code: mpesa_receipt_code || null,
+      items: rawItems,
+      credit_account: creditAccount ? { fundi_name: creditAccount.fundi_name, new_balance_kes: creditAccount.current_balance_kes + total } : null
+    });
+  } catch (err) {
+    console.error('Checkout error:', err);
+    res.status(500).json({ error: err.message || 'Error processing checkout invoice' });
+  }
 }
 
 // POST /api/pos/invoice
