@@ -1245,14 +1245,20 @@ function renderSingleMixHtml(catalogColors, baseTins) {
 
           <div class="form-row">
             <div class="form-group">
-              <label>Customer Phone Number</label>
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Customer Phone</span>
+                <span style="color:#059669; font-size:0.72rem; font-weight:700;">Required</span>
+              </label>
               <div class="input-with-icon">
                 <span class="input-icon">${Icons.phone}</span>
                 <input type="text" id="dispense-customer-phone" placeholder="254712345678" value="254712345678" required />
               </div>
             </div>
             <div class="form-group">
-              <label>Painter / Fundi Phone (Optional)</label>
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Painter / Fundi Phone</span>
+                <span style="color:#64748b; font-size:0.72rem; font-weight:600;">(Optional)</span>
+              </label>
               <div class="input-with-icon">
                 <span class="input-icon">${Icons.phone}</span>
                 <input type="text" id="dispense-painter-phone" placeholder="254799887766" />
@@ -1765,14 +1771,20 @@ function renderMultiBlendHtml(catalogColors, baseTins) {
 
           <div class="form-row">
             <div class="form-group">
-              <label>Customer Phone Number</label>
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Customer Phone</span>
+                <span style="color:#059669; font-size:0.72rem; font-weight:700;">Required</span>
+              </label>
               <div class="input-with-icon">
                 <span class="input-icon">${Icons.phone}</span>
                 <input type="text" id="blend-customer-phone" placeholder="254712345678" value="254712345678" required />
               </div>
             </div>
             <div class="form-group">
-              <label>Painter / Fundi Phone (Optional)</label>
+              <label style="display:flex; justify-content:space-between; align-items:center;">
+                <span>Painter / Fundi Phone</span>
+                <span style="color:#64748b; font-size:0.72rem; font-weight:600;">(Optional)</span>
+              </label>
               <div class="input-with-icon">
                 <span class="input-icon">${Icons.phone}</span>
                 <input type="text" id="blend-painter-phone" placeholder="254799887766" />

@@ -519,6 +519,9 @@ main#view-container {
 /* Form Controls & Inputs */
 .form-group {
   margin-bottom: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 .form-group label {
   display: block;
@@ -526,11 +529,13 @@ main#view-container {
   font-weight: 700;
   color: var(--text-secondary);
   margin-bottom: 0.45rem;
+  min-height: 1.2rem;
 }
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+  align-items: flex-end;
 }
 .input-control, input[type="text"], input[type="number"], input[type="password"], select, textarea {
   width: 100%;
