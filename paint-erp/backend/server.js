@@ -22,6 +22,13 @@ app.use('/api/auth', authRoutes);
 app.use('/api/colors', colorRoutes);
 app.use('/api/paintpin', paintPinRoutes);
 app.use('/api/pos', posRoutes);
+app.use('/api/mpesa', (req, res, next) => {
+  // Alias /api/mpesa/* to /api/pos/mpesa/*
+  if (req.url === '/callback') req.url = '/mpesa/callback';
+  else if (req.url === '/stkpush' || req.url === '/stk-push') req.url = '/mpesa/stk-push';
+  else if (!req.url.startsWith('/mpesa/')) req.url = '/mpesa' + req.url;
+  posRoutes(req, res, next);
+});
 app.use('/api/stock', stockRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/audit', auditRoutes);
@@ -37,7 +44,7 @@ app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, '..', 'f
 
 const PORT = process.env.PORT || 4000;
 
-if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && require.main === module) {
   app.listen(PORT, () => {
     console.log(`Paint ERP backend running on http://localhost:${PORT}`);
   });

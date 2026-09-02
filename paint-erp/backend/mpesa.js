@@ -26,7 +26,7 @@ function getDarajaConfig() {
     passkey: (row && row.passkey) || process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
     shortcode: (row && row.shortcode) || process.env.MPESA_SHORTCODE || '174379',
     tillNumber: (row && row.till_number) || process.env.MPESA_TILL_NUMBER || '174379',
-    callbackUrl: (row && row.callback_url) || process.env.MPESA_CALLBACK_URL || 'https://paint-erp.loca.lt/api/pos/mpesa/callback'
+    callbackUrl: (row && row.callback_url) || process.env.MPESA_CALLBACK_URL || 'https://paint-hardware-erp-system.vercel.app/api/pos/mpesa/callback'
   };
 }
 
