@@ -8,7 +8,7 @@ const { syncToSupabase } = require('../supabaseSync');
 
 // Helper to handle invoice/checkout logic
 function processCheckout(req, res) {
-  let { customer_phone, payment_method, items, lines } = req.body;
+  let { customer_phone, payment_method, mpesa_receipt_code, items, lines } = req.body;
   const rawItems = items || lines;
   if (!payment_method || !Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'payment_method and a non-empty items[] are required.' });
@@ -45,7 +45,7 @@ function processCheckout(req, res) {
     }
   }
 
-  const initialStatus = (dbPaymentMethod === 'Cash' || dbPaymentMethod === 'Credit') ? 'Paid' : 'Pending';
+  const initialStatus = (dbPaymentMethod === 'Cash' || dbPaymentMethod === 'Credit' || (dbPaymentMethod === 'Mpesa' && mpesa_receipt_code)) ? 'Paid' : 'Pending';
 
   const createInvoice = db.transaction(() => {
     const info = db.prepare(`
@@ -86,6 +86,16 @@ function processCheckout(req, res) {
     // If Cash payment, credit cash drawer
     if (dbPaymentMethod === 'Cash') {
       db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'Cash Drawer'").run(total);
+    }
+
+    // If M-Pesa payment, credit M-Pesa Till
+    if (dbPaymentMethod === 'Mpesa') {
+      db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(total);
+      if (mpesa_receipt_code) {
+        try {
+          db.prepare("UPDATE mpesa_payments SET invoice_id = ?, payment_status = 'Completed' WHERE mpesa_receipt_code = ?").run(invoiceId, mpesa_receipt_code);
+        } catch (mErr) {}
+      }
     }
 
     // If Credit account, post charge transaction and update balance
@@ -142,6 +152,8 @@ function processCheckout(req, res) {
     payment_method: dbPaymentMethod,
     payment_status: initialStatus,
     status: initialStatus,
+    mpesa_receipt_code: mpesa_receipt_code || null,
+    items: rawItems,
     credit_account: creditAccount ? { fundi_name: creditAccount.fundi_name, new_balance_kes: creditAccount.current_balance_kes + total } : null
   });
 }

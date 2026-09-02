@@ -2833,54 +2833,130 @@ function showMpesaCheckoutModal(options) {
 
   async function handleMpesaSuccess(receiptCode) {
     cleanupTimers();
-    modal.innerHTML = `
-      <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
-        <div class="modal-container-card" style="max-width: 440px; width: 100%; padding: 2rem; border-radius: 16px; text-align: center; background: white; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);">
-          <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: mpesaPulse 1s infinite;">✅</div>
-          <h3 style="color: #065f46; font-size: 1.35rem; font-weight: 900; margin: 0 0 0.4rem;">
-            M-Pesa Payment Confirmed!
-          </h3>
-          <p style="color: #047857; font-size: 0.92rem; margin: 0 0 1rem;">
-            Receipt Code: <strong style="font-family: var(--font-mono); color: #0f172a; font-size: 1.05rem;">${escapeHtml(receiptCode)}</strong>
-          </p>
-          <div style="font-size: 1.4rem; font-weight: 900; color: #0f172a; margin-bottom: 1.5rem; font-family: var(--font-mono);">
-            KES ${grandTotal.toLocaleString()}
+
+    function renderSuccessCard(finalInvoiceRes, errorMsg = null) {
+      modal.innerHTML = `
+        <div class="modal-overlay" style="padding: 1rem; align-items:center; justify-content:center;">
+          <div class="modal-container-card" style="max-width: 450px; width: 100%; padding: 2rem; border-radius: 16px; text-align: center; background: white; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45); position: relative;">
+            <button type="button" id="btn-close-mpesa-success-x" style="position: absolute; top: 1rem; right: 1rem; background: #f1f5f9; border: none; border-radius: 50%; width: 32px; height: 32px; font-size: 1rem; font-weight: 800; cursor: pointer; color: #64748b;" title="Close Modal">✕</button>
+
+            <div style="font-size: 3.5rem; margin-bottom: 0.5rem; animation: mpesaPulse 1.2s infinite;">✅</div>
+            <h3 style="color: #065f46; font-size: 1.35rem; font-weight: 900; margin: 0 0 0.4rem;">
+              M-Pesa Payment Confirmed!
+            </h3>
+            <p style="color: #047857; font-size: 0.92rem; margin: 0 0 0.75rem;">
+              Receipt Code: <strong style="font-family: var(--font-mono); color: #0f172a; font-size: 1.05rem;">${escapeHtml(receiptCode)}</strong>
+            </p>
+            <div style="font-size: 1.5rem; font-weight: 900; color: #0f172a; margin-bottom: 1.25rem; font-family: var(--font-mono);">
+              KES ${grandTotal.toLocaleString()}
+            </div>
+
+            ${errorMsg ? `
+              <div style="background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 8px; padding: 0.75rem; margin-bottom: 1.1rem; color: #b91c1c; font-size: 0.84rem; text-align: left;">
+                <strong>⚠️ Notice:</strong> ${escapeHtml(errorMsg)}
+              </div>
+              <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                <button type="button" id="btn-retry-invoice-finalize" class="btn btn-primary btn-sm" style="background: #0f172a; color: #f59e0b; font-weight: 800;">
+                  🔄 Retry Finalize
+                </button>
+                <button type="button" id="btn-finish-manual-receipt" class="btn btn-secondary btn-sm" style="font-weight: 700;">
+                  🖨️ View Receipt
+                </button>
+              </div>
+            ` : `
+              <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1.2rem;">
+                ${finalInvoiceRes ? '✅ Sale registered and synced to cloud ledger.' : 'Generating invoice in background...'}
+              </p>
+              <div style="display: flex; gap: 0.6rem; justify-content: center;">
+                <button type="button" id="btn-finish-manual-receipt" class="btn btn-primary btn-block" style="background: #059669; border-color: #059669; font-weight: 800; padding: 0.75rem 1.25rem;">
+                  🖨️ View Receipt &amp; Complete Sale
+                </button>
+              </div>
+            `}
           </div>
-          <p style="color: #64748b; font-size: 0.82rem; margin: 0;">Generating receipt and finalizing sale...</p>
         </div>
-      </div>
-    `;
+      `;
 
-    // Process checkout with Mpesa payment method
-    try {
-      const checkoutRes = await apiFetch('/api/pos/checkout', {
-        method: 'POST',
-        body: JSON.stringify({
-          customer_phone: customerPhone,
-          payment_method: 'Mpesa',
-          mpesa_receipt_code: receiptCode,
-          items: items.map(it => ({
-            type: it.type || 'hardware_product',
-            product_id: it.product_id || null,
-            base_id: it.base_id || null,
-            description: it.description,
-            quantity: Number(it.quantity || 1),
-            unit_price_kes: Number(it.unit_price_kes || 0),
-            unit_cost_kes: Number(it.unit_cost_kes || 0),
-            paint_pin: it.paint_pin || null
-          }))
-        })
-      });
+      const closeX = document.getElementById('btn-close-mpesa-success-x');
+      if (closeX) {
+        closeX.addEventListener('click', () => {
+          modal.innerHTML = '';
+          if (typeof onComplete === 'function') {
+            try {
+              onComplete(finalInvoiceRes || { invoice_number: 'INV-MPESA', invoice_id: null, items }, receiptCode);
+            } catch (e) {
+              console.error('onComplete error:', e);
+            }
+          }
+        });
+      }
 
-      setTimeout(() => {
-        modal.innerHTML = '';
-        if (typeof onComplete === 'function') {
-          onComplete(checkoutRes, receiptCode);
-        }
-      }, 1200);
-    } catch (err) {
-      toast('Error finalizing invoice: ' + err.message, true);
+      const finishBtn = document.getElementById('btn-finish-manual-receipt');
+      if (finishBtn) {
+        finishBtn.addEventListener('click', () => {
+          modal.innerHTML = '';
+          if (typeof onComplete === 'function') {
+            try {
+              onComplete(finalInvoiceRes || { invoice_number: 'INV-MPESA', invoice_id: null, items }, receiptCode);
+            } catch (e) {
+              console.error('onComplete error:', e);
+            }
+          }
+        });
+      }
+
+      const retryBtn = document.getElementById('btn-retry-invoice-finalize');
+      if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+          doCheckout();
+        });
+      }
     }
+
+    renderSuccessCard(null);
+
+    async function doCheckout() {
+      try {
+        const checkoutRes = await apiFetch('/api/pos/checkout', {
+          method: 'POST',
+          body: JSON.stringify({
+            customer_phone: customerPhone,
+            payment_method: 'Mpesa',
+            mpesa_receipt_code: receiptCode,
+            items: items.map(it => ({
+              type: it.type || 'hardware_product',
+              product_id: it.product_id || null,
+              base_id: it.base_id || null,
+              description: it.description,
+              quantity: Number(it.quantity || 1),
+              unit_price_kes: Number(it.unit_price_kes || 0),
+              unit_cost_kes: Number(it.unit_cost_kes || 0),
+              paint_pin: it.paint_pin || null
+            }))
+          })
+        });
+
+        renderSuccessCard(checkoutRes);
+
+        setTimeout(() => {
+          if (modal.innerHTML.includes('M-Pesa Payment Confirmed')) {
+            modal.innerHTML = '';
+            if (typeof onComplete === 'function') {
+              try {
+                onComplete(checkoutRes, receiptCode);
+              } catch (e) {
+                console.error('onComplete error:', e);
+              }
+            }
+          }
+        }, 1200);
+      } catch (err) {
+        console.error('Invoice finalization error:', err);
+        renderSuccessCard(null, err.message || 'Error auto-finalizing invoice');
+      }
+    }
+
+    doCheckout();
   }
 
   // Initial render
@@ -8204,67 +8280,77 @@ async function showGeneratePinModal() {
 
 // Thermal Receipt Print Handler
 function printSaleReceipt(inv) {
-  const printWin = window.open('', '_blank', 'width=400,height=600');
-  const fmt = (num) => Math.round(Number(num || 0)).toLocaleString('en-US');
+  if (!inv) return;
+  try {
+    const printWin = window.open('', '_blank', 'width=400,height=600');
+    if (!printWin) {
+      toast('Receipt popup was blocked by browser. Please allow popups.', true);
+      return;
+    }
+    const fmt = (num) => Math.round(Number(num || 0)).toLocaleString('en-US');
 
-  printWin.document.write(`
-    <html>
-      <head>
-        <title>Receipt - ${inv.invoice_number}</title>
-        <style>
-          body { font-family: monospace; font-size: 12px; margin: 10px; color: #000; }
-          .center { text-align: center; }
-          .divider { border-top: 1px dashed #000; margin: 8px 0; }
-          .flex { display: flex; justify-content: space-between; }
-          .bold { font-weight: bold; }
-          table { width: 100%; font-size: 11px; border-collapse: collapse; }
-          th, td { text-align: left; padding: 2px 0; }
-          td.r, th.r { text-align: right; }
-        </style>
-      </head>
-      <body>
-        <div class="center bold" style="font-size: 14px;">PAINT & HARDWARE ERP</div>
-        <div class="center">Specialist Paint Tinting & Hardware</div>
-        <div class="center">Nairobi, Kenya · Tel: 0700 000 000</div>
-        <div class="divider"></div>
-        <div class="flex"><span>Invoice:</span><span class="bold">${inv.invoice_number}</span></div>
-        <div class="flex"><span>Date:</span><span>${new Date(inv.created_at || Date.now()).toLocaleString()}</span></div>
-        <div class="flex"><span>Cashier:</span><span>${inv.served_by || 'Staff'}</span></div>
-        <div class="flex"><span>Customer:</span><span>${inv.customer_phone || 'Walk-in'}</span></div>
-        <div class="flex"><span>Payment:</span><span class="bold">${inv.payment_method}</span></div>
-        ${inv.mpesa_receipt_code ? `<div class="flex"><span>M-Pesa Ref:</span><span class="bold" style="font-family:monospace; color:#047857;">${inv.mpesa_receipt_code}</span></div>` : ''}
-        <div class="divider"></div>
-        <table>
-          <thead>
-            <tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Total</th></tr>
-          </thead>
-          <tbody>
-            ${(inv.items || []).map(i => `
-              <tr>
-                <td>${i.description}</td>
-                <td class="r">${i.quantity}</td>
-                <td class="r">${fmt(i.unit_price_kes)}</td>
-                <td class="r">${fmt((i.quantity || 1) * (i.unit_price_kes || 0))}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        <div class="divider"></div>
-        <div class="flex bold" style="font-size: 13px;">
-          <span>TOTAL PAID:</span>
-          <span>KES ${fmt(inv.total_kes || inv.total_amount_kes)}</span>
-        </div>
-        <div class="divider"></div>
-        <div class="center" style="font-size: 10px; margin-top: 10px;">
-          Thank you for your business!<br/>Goods once sold are only returnable in original condition within 48 hours.
-        </div>
-        <script>
-          window.onload = function() { window.print(); };
-        </script>
-      </body>
-    </html>
-  `);
-  printWin.document.close();
+    printWin.document.write(`
+      <html>
+        <head>
+          <title>Receipt - ${inv.invoice_number}</title>
+          <style>
+            body { font-family: monospace; font-size: 12px; margin: 10px; color: #000; }
+            .center { text-align: center; }
+            .divider { border-top: 1px dashed #000; margin: 8px 0; }
+            .flex { display: flex; justify-content: space-between; }
+            .bold { font-weight: bold; }
+            table { width: 100%; font-size: 11px; border-collapse: collapse; }
+            th, td { text-align: left; padding: 2px 0; }
+            td.r, th.r { text-align: right; }
+          </style>
+        </head>
+        <body>
+          <div class="center bold" style="font-size: 14px;">PAINT & HARDWARE ERP</div>
+          <div class="center">Specialist Paint Tinting & Hardware</div>
+          <div class="center">Nairobi, Kenya · Tel: 0700 000 000</div>
+          <div class="divider"></div>
+          <div class="flex"><span>Invoice:</span><span class="bold">${inv.invoice_number}</span></div>
+          <div class="flex"><span>Date:</span><span>${new Date(inv.created_at || Date.now()).toLocaleString()}</span></div>
+          <div class="flex"><span>Cashier:</span><span>${inv.served_by || 'Staff'}</span></div>
+          <div class="flex"><span>Customer:</span><span>${inv.customer_phone || 'Walk-in'}</span></div>
+          <div class="flex"><span>Payment:</span><span class="bold">${inv.payment_method}</span></div>
+          ${inv.mpesa_receipt_code ? `<div class="flex"><span>M-Pesa Ref:</span><span class="bold" style="font-family:monospace; color:#047857;">${inv.mpesa_receipt_code}</span></div>` : ''}
+          <div class="divider"></div>
+          <table>
+            <thead>
+              <tr><th>Item</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Total</th></tr>
+            </thead>
+            <tbody>
+              ${(inv.items || []).map(i => `
+                <tr>
+                  <td>${i.description}</td>
+                  <td class="r">${i.quantity}</td>
+                  <td class="r">${fmt(i.unit_price_kes)}</td>
+                  <td class="r">${fmt((i.quantity || 1) * (i.unit_price_kes || 0))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="divider"></div>
+          <div class="flex bold" style="font-size: 13px;">
+            <span>TOTAL PAID:</span>
+            <span>KES ${fmt(inv.total_kes || inv.total_amount_kes)}</span>
+          </div>
+          <div class="divider"></div>
+          <div class="center" style="font-size: 10px; margin-top: 10px;">
+            Thank you for your business!<br/>Goods once sold are only returnable in original condition within 48 hours.
+          </div>
+          <script>
+            window.onload = function() { window.print(); };
+          </script>
+        </body>
+      </html>
+    `);
+    printWin.document.close();
+  } catch (err) {
+    console.error('Print receipt error:', err);
+    toast('Could not open print receipt window', true);
+  }
 }
 
 
