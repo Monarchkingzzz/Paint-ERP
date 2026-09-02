@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { db, hashPassword } = require('../db');
-const { createSession, verifyToken, sessions } = require('../middleware/auth');
+const { createSession, verifyToken, sessions, rateLimiter } = require('../middleware/auth');
 const { logAction } = require('../audit');
 const { syncToSupabase, updateSupabase, deleteFromSupabase } = require('../supabaseSync');
 
 // POST /api/auth/login
-router.post('/login', (req, res) => {
+router.post('/login', rateLimiter(20, 60000), (req, res) => {
   const { phone_number, password } = req.body;
   if (!phone_number || !password) {
     return res.status(400).json({ error: 'phone_number and password are required.' });

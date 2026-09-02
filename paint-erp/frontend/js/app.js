@@ -695,6 +695,9 @@ function renderShell() {
                 📱 M-Pesa Setup
               </button>
             ` : ''}
+            <button class="btn btn-secondary btn-sm" onclick="showBranchesModal()" style="display:inline-flex; align-items:center; gap:0.35rem; background:#f0fdf4; border-color:#bbf7d0; color:#166534; font-weight:700; padding:0.4rem 0.75rem;">
+              🏢 Branches
+            </button>
             <button class="btn btn-secondary btn-sm" onclick="showBulkImportModal()" style="display:inline-flex; align-items:center; gap:0.35rem; background:#fffbeb; border-color:#fde68a; color:#92400e; padding:0.4rem 0.75rem;">
               📥 Fandecks
             </button>
@@ -5087,7 +5090,7 @@ async function renderStockView(container, filter = currentStockFilter) {
         <h2>${Icons.stock} Smart Inventory &amp; Live Stock Valuation</h2>
         <p>Real-time asset valuation, profit margins, and automated stock replenishment.</p>
       </div>
-      <div class="view-header-actions" style="display:flex; align-items:center; gap:0.5rem;">
+      <div class="view-header-actions" style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
         <button id="btn-clear-all-stock" class="btn btn-secondary btn-sm" style="border-color:#fca5a5; color:#dc2626; font-weight:700;">
           ${Icons.trash} Clear All Inventory
         </button>
@@ -5112,15 +5115,23 @@ async function renderStockView(container, filter = currentStockFilter) {
       </div>
     </div>
 
-    <!-- Category Filter Tabs -->
-    <div class="filter-tabs-row" id="stock-filter-tabs" style="display:none; margin-bottom:1.25rem;">
-      <button class="filter-tab-pill ${filter === 'all' ? 'active' : ''}" data-filter="all">All Inventory Items</button>
-      <button class="filter-tab-pill ${filter === 'low' ? 'active' : ''}" data-filter="low" id="tab-low-stock" style="font-weight:800;">
-        🚨 Needs Restocking
-      </button>
-      <button class="filter-tab-pill ${filter === 'base' ? 'active' : ''}" data-filter="base">🎨 Base Paint Tins</button>
-      <button class="filter-tab-pill ${filter === 'pigment' ? 'active' : ''}" data-filter="pigment">🧪 Tinting Pigments (ml)</button>
-      <button class="filter-tab-pill ${filter === 'hardware' ? 'active' : ''}" data-filter="hardware">🔨 Hardware &amp; Prep</button>
+    <!-- Category Filter Tabs & Quick Search -->
+    <div id="stock-controls-row" style="display:none; margin-bottom:1.25rem;">
+      <div class="filter-tabs-row" id="stock-filter-tabs" style="margin-bottom:0.85rem; flex-wrap:wrap; gap:0.5rem;">
+        <button class="filter-tab-pill ${filter === 'all' ? 'active' : ''}" data-filter="all" id="tab-all-stock">All Inventory Items</button>
+        <button class="filter-tab-pill ${filter === 'low' ? 'active' : ''}" data-filter="low" id="tab-low-stock" style="font-weight:800;">
+          🚨 Needs Restocking
+        </button>
+        <button class="filter-tab-pill ${filter === 'base' ? 'active' : ''}" data-filter="base" id="tab-bases">🎨 Base Paint Tins</button>
+        <button class="filter-tab-pill ${filter === 'pigment' ? 'active' : ''}" data-filter="pigment" id="tab-pigments">🧪 Tinting Pigments (ml)</button>
+        <button class="filter-tab-pill ${filter === 'hardware' ? 'active' : ''}" data-filter="hardware" id="tab-hardware">🔨 Hardware &amp; Prep</button>
+      </div>
+
+      <div class="stock-search-wrap">
+        <span style="font-size:1.05rem; color:#94a3b8;">🔍</span>
+        <input type="text" id="stock-search-input" class="stock-search-input" placeholder="Quick search inventory by item name, SKU code, or brand..." />
+        <span id="stock-search-count" style="font-size:0.78rem; font-weight:700; color:#64748b; white-space:nowrap;"></span>
+      </div>
     </div>
 
     <!-- Inventory Table Card -->
@@ -5170,40 +5181,40 @@ async function renderStockView(container, filter = currentStockFilter) {
       valBanner.innerHTML = `
         <div class="stock-4valuation-grid">
           <!-- 1. Wholesale Cost Basis -->
-          <div class="kpi-metric-card" style="border-left: 4px solid #0284c7;">
+          <div class="stock-stat-card" style="border-left: 4px solid #0284c7;">
             <div class="kpi-metric-label">WHOLESALE COST WORTH</div>
             <div>
-              <div class="kpi-metric-val" style="color: #0284c7;">KSh ${fmt(valuation.total_cost_worth_kes)}</div>
-              <div class="kpi-currency-prefix" style="margin-top:2px;">Purchase Asset Capital</div>
+              <div class="stock-stat-val" style="color: #0284c7;">KSh ${fmt(valuation.total_cost_worth_kes)}</div>
+              <div class="kpi-currency-prefix" style="margin-top:3px; font-size:0.8rem; font-weight:600;">Purchase Asset Capital</div>
             </div>
           </div>
 
           <!-- 2. Expected Retail Worth -->
-          <div class="kpi-metric-card" style="border-left: 4px solid #10b981;">
+          <div class="stock-stat-card" style="border-left: 4px solid #10b981;">
             <div class="kpi-metric-label">EXPECTED RETAIL WORTH</div>
             <div>
-              <div class="kpi-metric-val green">KSh ${fmt(valuation.total_retail_worth_kes)}</div>
-              <div class="kpi-currency-prefix" style="margin-top:2px;">Selling Revenue Potential</div>
+              <div class="stock-stat-val" style="color: #10b981;">KSh ${fmt(valuation.total_retail_worth_kes)}</div>
+              <div class="kpi-currency-prefix" style="margin-top:3px; font-size:0.8rem; font-weight:600;">Selling Revenue Potential</div>
             </div>
           </div>
 
           <!-- 3. Potential Gross Profit -->
-          <div class="kpi-metric-card" style="border-left: 4px solid #f59e0b;">
+          <div class="stock-stat-card" style="border-left: 4px solid #f59e0b;">
             <div class="kpi-metric-label">POTENTIAL GROSS PROFIT</div>
             <div>
-              <div class="kpi-metric-val" style="color:#d97706;">+KSh ${fmt(valuation.potential_profit_kes)}</div>
-              <div class="kpi-currency-prefix" style="margin-top:2px;">Margin: ${valuation.profit_margin_pct}% on inventory</div>
+              <div class="stock-stat-val" style="color: #d97706;">+KSh ${fmt(valuation.potential_profit_kes)}</div>
+              <div class="kpi-currency-prefix" style="margin-top:3px; font-size:0.8rem; font-weight:600;">Margin: ${valuation.profit_margin_pct}% on inventory</div>
             </div>
           </div>
 
           <!-- 4. Stock Health & Restock Warning -->
-          <div class="kpi-metric-card" style="border-left: 4px solid ${valuation.low_stock_count > 0 ? '#ef4444' : '#16a34a'};">
+          <div class="stock-stat-card" style="border-left: 4px solid ${valuation.low_stock_count > 0 ? '#ef4444' : '#16a34a'};">
             <div class="kpi-metric-label">INVENTORY HEALTH</div>
             <div>
-              <div class="kpi-metric-val" style="font-size:1.15rem; color:${valuation.low_stock_count > 0 ? '#dc2626' : '#16a34a'};">
-                ${valuation.low_stock_count > 0 ? `🚨 ${valuation.low_stock_count} Items Need Restocking` : '✅ All Items Well Stocked'}
+              <div class="stock-stat-val" style="font-size:1.18rem; color:${valuation.low_stock_count > 0 ? '#dc2626' : '#16a34a'};">
+                ${valuation.low_stock_count > 0 ? `🚨 ${valuation.low_stock_count} Need Restock` : '✅ All Items Well Stocked'}
               </div>
-              <div class="kpi-currency-prefix" style="margin-top:2px;">${valuation.total_skus_tracked} Total SKUs Monitored</div>
+              <div class="kpi-currency-prefix" style="margin-top:3px; font-size:0.8rem; font-weight:600;">${valuation.total_skus_tracked} Total SKUs Monitored</div>
             </div>
           </div>
         </div>
@@ -5211,10 +5222,22 @@ async function renderStockView(container, filter = currentStockFilter) {
     }
 
     // 2. Setup Filter Tabs & Badges
-    const filterTabs = document.getElementById('stock-filter-tabs');
+    const controlsRow = document.getElementById('stock-controls-row');
     const mainPanel = document.getElementById('stock-main-panel');
-    if (filterTabs) filterTabs.style.display = 'flex';
+    if (controlsRow) controlsRow.style.display = 'block';
     if (mainPanel) mainPanel.style.display = 'block';
+
+    const tabAll = document.getElementById('tab-all-stock');
+    if (tabAll) tabAll.innerHTML = `All Items (${valuation.total_skus_tracked})`;
+
+    const tabBases = document.getElementById('tab-bases');
+    if (tabBases) tabBases.innerHTML = `🎨 Base Tins (${bases.length})`;
+
+    const tabPigments = document.getElementById('tab-pigments');
+    if (tabPigments) tabPigments.innerHTML = `🧪 Pigments (${pigments.length})`;
+
+    const tabHardware = document.getElementById('tab-hardware');
+    if (tabHardware) tabHardware.innerHTML = `🔨 Hardware (${products.length})`;
 
     const tabLow = document.getElementById('tab-low-stock');
     if (tabLow) {
@@ -5286,62 +5309,64 @@ async function renderStockView(container, filter = currentStockFilter) {
             </div>
           </div>
 
-          <table class="stock-luxury-table">
-            <thead>
-              <tr>
-                <th>ITEM &amp; CATEGORY</th>
-                <th>CURRENT STOCK</th>
-                <th>MIN THRESHOLD</th>
-                <th>BUY COST</th>
-                <th>SUGGESTED REORDER</th>
-                <th style="text-align:right;">ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${lowItems.map((item) => `
-                <tr style="background:#fffafa;">
-                  <td>
-                    <div style="font-weight:800; color:#0f172a; font-size:0.92rem;">${escapeHtml(item.name)}</div>
-                    <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
-                      <span class="status-pill failed" style="font-size:0.68rem; font-weight:800; padding:1px 6px;">${item.type === 'base' ? 'Paint Base' : item.type === 'pigment' ? 'Pigment' : 'Hardware'}</span>
-                      · Brand: ${escapeHtml(item.brand || 'Store SKU')}
-                    </div>
-                  </td>
-                  <td>
-                    <span style="font-weight:800; font-size:0.92rem; color:#dc2626; background:#fef2f2; padding:0.25rem 0.6rem; border-radius:6px; border:1px solid #fecaca; white-space:nowrap;">
-                      ${item.current_qty} ${item.unit}
-                    </span>
-                  </td>
-                  <td style="font-size:0.85rem; color:#64748b; font-weight:700; white-space:nowrap;">
-                    Min ${item.low_stock_threshold} ${item.unit}
-                  </td>
-                  <td style="font-weight:700; font-size:0.92rem; color:#0f172a; white-space:nowrap;">
-                    KSh ${fmt(item.unit_cost)}
-                  </td>
-                  <td>
-                    <span style="font-weight:800; font-size:0.86rem; color:#0284c7; background:#f0f9ff; padding:0.25rem 0.6rem; border-radius:6px; border:1px solid #bae6fd; white-space:nowrap;">
-                      +${item.suggested_reorder} ${item.unit}
-                    </span>
-                  </td>
-                  <td style="text-align:right;">
-                    <div style="display:inline-flex; align-items:center; gap:0.35rem; justify-content:flex-end;">
-                      <button class="btn btn-primary btn-sm btn-row-restock" data-type="${item.type}" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-unit="${item.unit}" data-cost="${item.unit_cost}" data-suggest="${item.suggested_reorder}" data-stock="${item.current_qty}" style="font-weight:800; padding:0.28rem 0.75rem; display:inline-flex; align-items:center; gap:0.3rem; background:#0f172a; color:#f59e0b; border-color:#0f172a;">
-                        ⚡ Restock
-                      </button>
-                      <button class="btn btn-danger btn-sm btn-delete-stock-item" data-type="${item.type}" data-id="${item.id}" data-name="${escapeHtml(item.name)}" style="padding:0.28rem 0.5rem; font-size:0.78rem; background:#fee2e2; color:#dc2626; border:1px solid #fecaca;" title="Delete Item (PIN Required)">
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
+          <div class="stock-table-scroll">
+            <table class="stock-luxury-table">
+              <thead>
+                <tr>
+                  <th>ITEM &amp; CATEGORY</th>
+                  <th>CURRENT STOCK</th>
+                  <th>MIN THRESHOLD</th>
+                  <th>BUY COST</th>
+                  <th>SUGGESTED REORDER</th>
+                  <th style="text-align:right;">ACTION</th>
                 </tr>
-              `).join('')}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${lowItems.map((item) => `
+                  <tr style="background:#fffafa;">
+                    <td>
+                      <div style="font-weight:800; color:#0f172a; font-size:0.92rem;">${escapeHtml(item.name)}</div>
+                      <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
+                        <span class="status-pill failed" style="font-size:0.68rem; font-weight:800; padding:1px 6px;">${item.type === 'base' ? 'Paint Base' : item.type === 'pigment' ? 'Pigment' : 'Hardware'}</span>
+                        · Brand: ${escapeHtml(item.brand || 'Store SKU')}
+                      </div>
+                    </td>
+                    <td>
+                      <span style="font-weight:800; font-size:0.92rem; color:#dc2626; background:#fef2f2; padding:0.25rem 0.6rem; border-radius:6px; border:1px solid #fecaca; white-space:nowrap;">
+                        ${item.current_qty} ${item.unit}
+                      </span>
+                    </td>
+                    <td style="font-size:0.85rem; color:#64748b; font-weight:700; white-space:nowrap;">
+                      Min ${item.low_stock_threshold} ${item.unit}
+                    </td>
+                    <td style="font-weight:700; font-size:0.92rem; color:#0f172a; white-space:nowrap;">
+                      KSh ${fmt(item.unit_cost)}
+                    </td>
+                    <td>
+                      <span style="font-weight:800; font-size:0.86rem; color:#0284c7; background:#f0f9ff; padding:0.25rem 0.6rem; border-radius:6px; border:1px solid #bae6fd; white-space:nowrap;">
+                        +${item.suggested_reorder} ${item.unit}
+                      </span>
+                    </td>
+                    <td style="text-align:right;">
+                      <div style="display:inline-flex; align-items:center; gap:0.35rem; justify-content:flex-end;">
+                        <button class="btn btn-primary btn-sm btn-row-restock" data-type="${item.type}" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-unit="${item.unit}" data-cost="${item.unit_cost}" data-suggest="${item.suggested_reorder}" data-stock="${item.current_qty}" style="font-weight:800; padding:0.28rem 0.75rem; display:inline-flex; align-items:center; gap:0.3rem; background:#0f172a; color:#f59e0b; border-color:#0f172a;">
+                          ⚡ Restock
+                        </button>
+                        <button class="btn btn-danger btn-sm btn-delete-stock-item" data-type="${item.type}" data-id="${item.id}" data-name="${escapeHtml(item.name)}" style="padding:0.28rem 0.5rem; font-size:0.78rem; background:#fee2e2; color:#dc2626; border:1px solid #fecaca;" title="Delete Item (PIN Required)">
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
         `;
       }
     } else {
       // STANDARD INVENTORY VIEW (STREAMLINED LUXURY COLUMNS)
-      let rows = [];
+      let rawRows = [];
 
       if (filter === 'all' || filter === 'base') {
         bases.forEach((b) => {
@@ -5349,7 +5374,7 @@ async function renderStockView(container, filter = currentStockFilter) {
           const isLow = qty <= Number(b.low_stock_threshold || 5);
           const unitCost = Number(b.unit_cost_kes || 1800);
           const retailPrice = Math.round(unitCost * 1.45);
-          rows.push({
+          rawRows.push({
             type: 'Base Tin',
             actionType: 'base',
             id: b.base_id,
@@ -5372,7 +5397,7 @@ async function renderStockView(container, filter = currentStockFilter) {
           const isLow = qtyMl <= Number(p.low_stock_threshold_ml || 500);
           const costPerMl = Number(p.unit_cost_per_ml_kes || 4.5);
           const retailPerMl = Math.round(costPerMl * 1.5 * 10) / 10;
-          rows.push({
+          rawRows.push({
             type: 'Pigment',
             actionType: 'pigment',
             id: p.pigment_id,
@@ -5393,7 +5418,7 @@ async function renderStockView(container, filter = currentStockFilter) {
         products.forEach((pr) => {
           const qty = Number(pr.quantity_in_stock || 0);
           const isLow = qty <= Number(pr.low_stock_threshold || 5);
-          rows.push({
+          rawRows.push({
             type: 'Hardware',
             actionType: 'product',
             id: pr.product_id,
@@ -5410,124 +5435,163 @@ async function renderStockView(container, filter = currentStockFilter) {
         });
       }
 
-      tableBody.innerHTML = `
-        <table class="stock-luxury-table">
-          <thead>
-            <tr>
-              <th>ITEM &amp; SPECIFICATION</th>
-              <th style="width:130px;">BUY COST</th>
-              <th style="width:130px;">SELL PRICE</th>
-              <th style="width:130px;">LIVE STOCK</th>
-              <th style="width:170px;">STOCK HEALTH</th>
-              <th style="text-align:right; width:220px;">ACTIONS</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map((r) => `
-              <tr style="${r.isLow ? 'background:#fffafa;' : ''}">
-                <td>
-                  <div style="font-weight:800; color:#0f172a; font-size:0.92rem;">${escapeHtml(r.name)}</div>
-                  <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
-                    <span class="status-pill ${r.isLow ? 'failed' : 'paid'}" style="font-size:0.68rem; font-weight:800; padding:1px 6px;">${r.type}</span>
-                    · SKU: ${escapeHtml(r.brand)}
-                  </div>
-                </td>
-                <td>
-                  <strong style="font-size:0.92rem; color:#475569; white-space:nowrap;">
-                    KSh ${fmt(r.unitCost)}${r.unit === 'ml' ? '/ml' : ''}
-                  </strong>
-                </td>
-                <td>
-                  <strong style="font-size:0.92rem; color:#0f172a; white-space:nowrap;">
-                    KSh ${fmt(r.price)}${r.unit === 'ml' ? '/ml' : ''}
-                  </strong>
-                </td>
-                <td>
-                  <strong style="${r.isLow ? 'color:#dc2626;' : 'color:#0f172a;'} font-size:0.95rem; white-space:nowrap;">
-                    ${r.stockStr}
-                  </strong>
-                </td>
-                <td>
-                  <div class="stock-meter-cell">
-                    <span style="font-size:0.75rem; font-weight:800; color:${r.isLow ? '#dc2626' : '#059669'};">
-                      ${r.isLow ? '⚠️ REORDER NEEDED' : '✅ Optimal Stock'}
-                    </span>
-                    <div class="stock-bar-track">
-                      <div class="stock-bar-fill ${r.isLow ? 'danger' : 'healthy'}" style="width:${Math.min(100, Math.max(15, (r.rawQty / (r.threshold * 2)) * 100))}%;"></div>
-                    </div>
-                  </div>
-                </td>
-                <td style="text-align:right;">
-                  <div style="display:inline-flex; align-items:center; gap:0.35rem; justify-content:flex-end;">
-                    <button class="btn btn-primary btn-sm btn-row-restock" data-type="${r.actionType}" data-id="${r.id}" data-name="${escapeHtml(r.name)}" data-unit="${r.unit}" data-cost="${r.unitCost}" data-suggest="10" data-stock="${r.rawQty}" style="padding:0.26rem 0.65rem; font-size:0.78rem; font-weight:800; background:#0f172a; color:#f59e0b; border-color:#0f172a;">
-                      ⚡ Restock
-                    </button>
-                    ${isOwner ? `
-                      <button data-type="${r.actionType}" data-id="${r.id}" data-name="${escapeHtml(r.name)}" data-qty="${r.rawQty}" class="btn-adjust-stock btn btn-secondary btn-sm" style="padding:0.26rem 0.65rem; font-size:0.78rem; font-weight:700;">
-                        Adjust
-                      </button>
-                    ` : ''}
-                    <button class="btn btn-danger btn-sm btn-delete-stock-item" data-type="${r.actionType}" data-id="${r.id}" data-name="${escapeHtml(r.name)}" style="padding:0.26rem 0.5rem; font-size:0.78rem; background:#fee2e2; color:#dc2626; border:1px solid #fecaca;" title="Delete Item (PIN Required)">
-                      🗑️
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
+      function renderTableContent(rowsToDisplay) {
+        tableBody.innerHTML = `
+          <div class="stock-table-scroll">
+            <table class="stock-luxury-table">
+              <thead>
+                <tr>
+                  <th>ITEM &amp; SPECIFICATION</th>
+                  <th style="width:130px;">BUY COST</th>
+                  <th style="width:130px;">SELL PRICE</th>
+                  <th style="width:130px;">LIVE STOCK</th>
+                  <th style="width:170px;">STOCK HEALTH</th>
+                  <th style="text-align:right; width:220px;">ACTIONS</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsToDisplay.length === 0 ? `
+                  <tr>
+                    <td colspan="6" style="padding:2.5rem; text-align:center; color:#64748b;">
+                      No inventory items found matching your filter.
+                    </td>
+                  </tr>
+                ` : rowsToDisplay.map((r) => `
+                  <tr style="${r.isLow ? 'background:#fffafa;' : ''}">
+                    <td>
+                      <div style="font-weight:800; color:#0f172a; font-size:0.92rem;">${escapeHtml(r.name)}</div>
+                      <div style="font-size:0.75rem; color:#64748b; margin-top:2px;">
+                        <span class="status-pill ${r.isLow ? 'failed' : 'paid'}" style="font-size:0.68rem; font-weight:800; padding:1px 6px;">${r.type}</span>
+                        · SKU: ${escapeHtml(r.brand)}
+                      </div>
+                    </td>
+                    <td>
+                      <strong style="font-size:0.92rem; color:#475569; white-space:nowrap;">
+                        KSh ${fmt(r.unitCost)}${r.unit === 'ml' ? '/ml' : ''}
+                      </strong>
+                    </td>
+                    <td>
+                      <strong style="font-size:0.92rem; color:#0f172a; white-space:nowrap;">
+                        KSh ${fmt(r.price)}${r.unit === 'ml' ? '/ml' : ''}
+                      </strong>
+                    </td>
+                    <td>
+                      <strong style="${r.isLow ? 'color:#dc2626;' : 'color:#0f172a;'} font-size:0.95rem; white-space:nowrap;">
+                        ${r.stockStr}
+                      </strong>
+                    </td>
+                    <td>
+                      <div class="stock-meter-cell">
+                        <span style="font-size:0.75rem; font-weight:800; color:${r.isLow ? '#dc2626' : '#059669'};">
+                          ${r.isLow ? '⚠️ REORDER NEEDED' : '✅ Optimal Stock'}
+                        </span>
+                        <div class="stock-bar-track">
+                          <div class="stock-bar-fill ${r.isLow ? 'danger' : 'healthy'}" style="width:${Math.min(100, Math.max(15, (r.rawQty / (r.threshold * 2)) * 100))}%;"></div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style="text-align:right;">
+                      <div style="display:inline-flex; align-items:center; gap:0.35rem; justify-content:flex-end;">
+                        <button class="btn btn-primary btn-sm btn-row-restock" data-type="${r.actionType}" data-id="${r.id}" data-name="${escapeHtml(r.name)}" data-unit="${r.unit}" data-cost="${r.unitCost}" data-suggest="10" data-stock="${r.rawQty}" style="padding:0.26rem 0.65rem; font-size:0.78rem; font-weight:800; background:#0f172a; color:#f59e0b; border-color:#0f172a;">
+                          ⚡ Restock
+                        </button>
+                        ${isOwner ? `
+                          <button data-type="${r.actionType}" data-id="${r.id}" data-name="${escapeHtml(r.name)}" data-qty="${r.rawQty}" class="btn-adjust-stock btn btn-secondary btn-sm" style="padding:0.26rem 0.65rem; font-size:0.78rem; font-weight:700;">
+                            Adjust
+                          </button>
+                        ` : ''}
+                        <button class="btn btn-danger btn-sm btn-delete-stock-item" data-type="${r.actionType}" data-id="${r.id}" data-name="${escapeHtml(r.name)}" style="padding:0.26rem 0.5rem; font-size:0.78rem; background:#fee2e2; color:#dc2626; border:1px solid #fecaca;" title="Delete Item (PIN Required)">
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        wireRowActions();
+      }
+
+      renderTableContent(rawRows);
+
+      // Wire Instant Search Input
+      const searchInput = document.getElementById('stock-search-input');
+      const searchCount = document.getElementById('stock-search-count');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => {
+          const q = searchInput.value.toLowerCase().trim();
+          if (!q) {
+            renderTableContent(rawRows);
+            if (searchCount) searchCount.textContent = '';
+            return;
+          }
+          const filtered = rawRows.filter(r => 
+            r.name.toLowerCase().includes(q) || 
+            r.brand.toLowerCase().includes(q) || 
+            r.type.toLowerCase().includes(q)
+          );
+          if (searchCount) searchCount.textContent = `${filtered.length} of ${rawRows.length} items`;
+          renderTableContent(filtered);
+        });
+      }
     }
 
-    // Attach Row Restock Clicks
-    tableBody.querySelectorAll('.btn-row-restock').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        showRestockModal({
-          type: btn.dataset.type,
-          id: Number(btn.dataset.id),
-          name: btn.dataset.name,
-          unit: btn.dataset.unit,
-          unitCost: Number(btn.dataset.cost || 0),
-          suggestedQty: Number(btn.dataset.suggest || 10),
-          currentQty: Number(btn.dataset.stock || 0)
-        }, { bases, pigments, products });
-      });
-    });
-
-    // Attach Row Adjust Clicks
-    tableBody.querySelectorAll('.btn-adjust-stock').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        showStockAdjustModal({
-          type: btn.dataset.type,
-          id: Number(btn.dataset.id),
-          name: btn.dataset.name,
-          currentQty: Number(btn.dataset.qty)
+    function wireRowActions() {
+      // Attach Row Restock Clicks
+      tableBody.querySelectorAll('.btn-row-restock').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          showRestockModal({
+            type: btn.dataset.type,
+            id: Number(btn.dataset.id),
+            name: btn.dataset.name,
+            unit: btn.dataset.unit,
+            unitCost: Number(btn.dataset.cost || 0),
+            suggestedQty: Number(btn.dataset.suggest || 10),
+            currentQty: Number(btn.dataset.stock || 0)
+          }, { bases, pigments, products });
         });
       });
-    });
 
-    // Attach Row Delete Clicks
-    tableBody.querySelectorAll('.btn-delete-stock-item').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const type = btn.dataset.type;
-        const id = btn.dataset.id;
-        const name = btn.dataset.name;
-        promptSecurityPin({
-          title: `🗑️ Delete ${name}`,
-          description: `Permanently remove "${name}" from inventory? This requires Store PIN authorization.`,
-          badgeText: 'PIN Protected',
-          confirmText: 'Confirm & Delete Item',
-          onConfirm: async (pin) => {
-            const res = await apiFetch(`/api/stock/item/${type}/${id}`, {
-              method: 'DELETE',
-              body: JSON.stringify({ pin, reason: 'Manual product removal' })
-            });
-            toast(res.message || 'Stock item deleted.');
-            renderStockView(container);
-          }
+      // Attach Row Adjust Clicks
+      tableBody.querySelectorAll('.btn-adjust-stock').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          showStockAdjustModal({
+            type: btn.dataset.type,
+            id: Number(btn.dataset.id),
+            name: btn.dataset.name,
+            currentQty: Number(btn.dataset.qty)
+          });
         });
       });
-    });
+
+      // Attach Row Delete Clicks
+      tableBody.querySelectorAll('.btn-delete-stock-item').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const type = btn.dataset.type;
+          const id = btn.dataset.id;
+          const name = btn.dataset.name;
+          promptSecurityPin({
+            title: `🗑️ Delete ${name}`,
+            description: `Permanently remove "${name}" from inventory? This requires Store PIN authorization.`,
+            badgeText: 'PIN Protected',
+            confirmText: 'Confirm & Delete Item',
+            onConfirm: async (pin) => {
+              const res = await apiFetch(`/api/stock/item/${type}/${id}`, {
+                method: 'DELETE',
+                body: JSON.stringify({ pin, reason: 'Manual product removal' })
+              });
+              toast(res.message || 'Stock item deleted.');
+              renderStockView(container);
+            }
+          });
+        });
+      });
+    }
+
+    wireRowActions();
 
   } catch (err) {
     const tableBody = document.getElementById('stock-table-body');
@@ -9471,6 +9535,135 @@ async function showUserProfileModal() {
         toast(err.message, true);
       }
     });
+  }
+}
+
+
+// ==========================================================================
+// MULTI-BRANCH ENTERPRISE STORE NETWORK & EXPANSION HUB
+// ==========================================================================
+async function showBranchesModal() {
+  const modal = document.getElementById('modal-container');
+  const isOwner = state.user && (state.user.role === 'Owner' || state.user.system_role === 'Owner');
+
+  let branches = [];
+  try {
+    branches = await apiFetch('/api/branches');
+  } catch (e) {
+    branches = [
+      { branch_id: 1, branch_code: 'MAIN-CBD', branch_name: 'Main Store & Tinting Depot', location: 'Nairobi CBD, River Road', phone_number: '254700000000' }
+    ];
+  }
+
+  modal.innerHTML = `
+    <div class="modal-overlay">
+      <div class="modal-container-card" style="max-width:720px;">
+        <div class="modal-header-bar">
+          <div>
+            <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:0.5rem;">
+              🏢 Multi-Branch Enterprise Store Network
+            </h3>
+            <p style="margin:4px 0 0; font-size:0.82rem; color:#64748b;">
+              Manage multiple hardware &amp; paint depots with unified stock, centralized cashflow, and branch reporting.
+            </p>
+          </div>
+          <button class="btn-close-modal" onclick="document.getElementById('modal-container').innerHTML=''">✕</button>
+        </div>
+
+        <div style="margin-bottom:1.2rem;">
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.9rem; margin-bottom:1.4rem;">
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:1rem;">
+              <div style="font-size:0.75rem; font-weight:800; color:#64748b; text-transform:uppercase;">Active Branches</div>
+              <div style="font-size:1.35rem; font-weight:800; color:#0f172a; margin-top:2px;">${branches.length} Locations</div>
+            </div>
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:1rem;">
+              <div style="font-size:0.75rem; font-weight:800; color:#166534; text-transform:uppercase;">Live Cloud Sync</div>
+              <div style="font-size:1.35rem; font-weight:800; color:#16a34a; margin-top:2px;">Active &amp; Centralized</div>
+            </div>
+          </div>
+
+          <h4 style="font-size:0.9rem; font-weight:800; color:#0f172a; margin-bottom:0.8rem;">Store Branch Directory</h4>
+          <div class="table-responsive" style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Branch Code</th>
+                  <th>Branch Name &amp; Depot</th>
+                  <th>Location</th>
+                  <th>Contact</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${branches.map(b => `
+                  <tr>
+                    <td><strong style="font-family:var(--font-mono); color:#0284c7;">${escapeHtml(b.branch_code || 'MAIN')}</strong></td>
+                    <td><strong>${escapeHtml(b.branch_name)}</strong></td>
+                    <td style="color:#64748b;">${escapeHtml(b.location || 'Nairobi')}</td>
+                    <td>${escapeHtml(b.phone_number || '-')}</td>
+                    <td><span class="status-pill success">Active</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        ${isOwner ? `
+          <div style="background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:10px; padding:1.2rem; margin-top:1.2rem;">
+            <h4 style="font-size:0.9rem; font-weight:800; color:#0f172a; margin-bottom:0.6rem;">+ Add New Store Branch / Expansion Depot</h4>
+            <form id="new-branch-form" style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+              <div>
+                <label style="font-size:0.78rem; font-weight:700; color:#475569;">Branch Name</label>
+                <input type="text" id="nb-name" placeholder="e.g. Mombasa Road Depot" required style="width:100%; font-size:0.88rem; padding:0.45rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px;" />
+              </div>
+              <div>
+                <label style="font-size:0.78rem; font-weight:700; color:#475569;">Location / City</label>
+                <input type="text" id="nb-loc" placeholder="e.g. Industrial Area, Enterprise Rd" required style="width:100%; font-size:0.88rem; padding:0.45rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px;" />
+              </div>
+              <div>
+                <label style="font-size:0.78rem; font-weight:700; color:#475569;">Branch Code (Optional)</label>
+                <input type="text" id="nb-code" placeholder="e.g. MSA-RD-03" style="width:100%; font-size:0.88rem; padding:0.45rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px;" />
+              </div>
+              <div>
+                <label style="font-size:0.78rem; font-weight:700; color:#475569;">Branch Phone Number</label>
+                <input type="text" id="nb-phone" placeholder="e.g. 2547XXXXXXXX" style="width:100%; font-size:0.88rem; padding:0.45rem 0.6rem; border:1px solid #cbd5e1; border-radius:6px;" />
+              </div>
+              <div style="grid-column:1 / -1; display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
+                <button type="submit" class="btn btn-primary btn-sm" style="font-weight:800;">
+                  ⚡ Provision &amp; Open Branch
+                </button>
+              </div>
+            </form>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+
+  if (isOwner) {
+    const form = document.getElementById('new-branch-form');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+          branch_name: document.getElementById('nb-name').value.trim(),
+          location: document.getElementById('nb-loc').value.trim(),
+          branch_code: document.getElementById('nb-code').value.trim(),
+          phone_number: document.getElementById('nb-phone').value.trim()
+        };
+        try {
+          const res = await apiFetch('/api/branches', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+          toast(res.message || 'Branch added successfully!');
+          showBranchesModal();
+        } catch (err) {
+          toast(err.message, true);
+        }
+      });
+    }
   }
 }
 

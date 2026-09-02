@@ -13,6 +13,7 @@ const auditRoutes = require('./routes/audit');
 const financialsRoutes = require('./routes/financials');
 const quotationsRoutes = require('./routes/quotations');
 const suppliersRoutes = require('./routes/suppliers');
+const branchRoutes = require('./routes/branches');
 
 const app = express();
 app.use(cors());
@@ -35,6 +36,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/financials', financialsRoutes);
 app.use('/api/quotations', quotationsRoutes);
 app.use('/api/suppliers', suppliersRoutes);
+app.use('/api/branches', branchRoutes);
 
 // Serve the PWA frontend
 app.use(express.static(path.join(__dirname, '..', 'frontend')));

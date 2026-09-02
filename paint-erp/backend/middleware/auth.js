@@ -122,4 +122,37 @@ function verifySecurityPin(pin, actionType = 'ALL', user = null) {
   return { valid: false, error: 'Invalid or expired Store Authorization PIN. Please request an active authorization PIN from the Store Owner.' };
 }
 
-module.exports = { sessions, createSession, verifyToken, requireAuth, requireOwner, verifySecurityPin };
+/**
+ * In-Memory Sliding-Window Rate Limiter
+ * @param {number} maxRequests 
+ * @param {number} windowMs 
+ */
+const rateLimitBuckets = new Map();
+
+function rateLimiter(maxRequests = 20, windowMs = 60000) {
+  return (req, res, next) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'ip-client';
+    const key = `${req.path}:${ip}`;
+    const now = Date.now();
+
+    let record = rateLimitBuckets.get(key);
+    if (!record || now > record.resetTime) {
+      record = { count: 1, resetTime: now + windowMs };
+      rateLimitBuckets.set(key, record);
+    } else {
+      record.count++;
+    }
+
+    if (record.count > maxRequests) {
+      return res.status(429).json({
+        error: 'Too many requests. For security, please wait a moment before trying again.',
+        retryAfterMs: record.resetTime - now
+      });
+    }
+
+    next();
+  };
+}
+
+module.exports = { sessions, createSession, verifyToken, requireAuth, requireOwner, verifySecurityPin, rateLimiter };
+

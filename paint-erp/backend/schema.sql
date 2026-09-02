@@ -239,3 +239,26 @@ CREATE TABLE IF NOT EXISTS security_pins (
     generated_by  INTEGER REFERENCES store_users(user_id),
     created_at    TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 16. MULTI-BRANCH ENTERPRISE NETWORK
+CREATE TABLE IF NOT EXISTS store_branches (
+    branch_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    branch_code   TEXT UNIQUE NOT NULL,        -- 'MAIN-CBD', 'WESTLANDS-02'
+    branch_name   TEXT NOT NULL,               -- 'Main CBD Depot', 'Westlands Hardware Branch'
+    location      TEXT NOT NULL,               -- 'Nairobi CBD, River Road'
+    phone_number  TEXT,
+    is_active     INTEGER DEFAULT 1,
+    created_at    TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- HIGH-THROUGHPUT ENTERPRISE PERFORMANCE INDEXES (FOR 1000s OF SALES)
+CREATE INDEX IF NOT EXISTS idx_invoices_created_at_status ON invoices(created_at, status);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_phone ON invoices(customer_phone);
+CREATE INDEX IF NOT EXISTS idx_inv_items_invoice ON invoice_items(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_inv_items_product ON invoice_items(product_id);
+CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_credit_accounts_bal ON credit_accounts(current_balance_kes);
+CREATE INDEX IF NOT EXISTS idx_products_stock ON products(quantity_in_stock, low_stock_threshold);
+CREATE INDEX IF NOT EXISTS idx_base_tins_stock ON stock_base_tins(quantity_in_stock, low_stock_threshold);
+

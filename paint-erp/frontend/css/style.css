@@ -2225,10 +2225,39 @@ main#view-container {
 /* Stock 4 Valuation Cards Grid */
 .stock-4valuation-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.15rem;
   margin-bottom: 1.4rem;
 }
+
+.stock-stat-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.2rem 1.35rem;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 118px;
+  box-sizing: border-box;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stock-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.stock-stat-val {
+  font-size: clamp(1.25rem, 1.5vw, 1.45rem);
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: #0f172a;
+  line-height: 1.25;
+  letter-spacing: -0.3px;
+  word-break: break-word;
+}
+
 
 /* Sales History 2 KPI Summary Grid */
 .sales-2kpi-grid {
@@ -2930,8 +2959,14 @@ main#view-container {
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
+.stock-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .stock-luxury-table {
   width: 100%;
+  min-width: 820px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.88rem;
@@ -2948,7 +2983,7 @@ main#view-container {
   white-space: nowrap;
 }
 .stock-luxury-table td {
-  padding: 1rem 1.15rem;
+  padding: 0.95rem 1.15rem;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
   color: #0f172a;
@@ -2975,6 +3010,34 @@ main#view-container {
   height: 100%;
   border-radius: 9999px;
 }
+
+.stock-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.6rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.stock-search-input {
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
+  width: 100%;
+}
+.stock-search-input::placeholder {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
 
 /* ==========================================================================
    POS INVENTORY SEARCH & FAST ADD AUTOCOMPLETE
