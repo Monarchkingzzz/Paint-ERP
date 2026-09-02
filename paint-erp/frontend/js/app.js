@@ -2501,6 +2501,7 @@ function showMpesaCheckoutModal(options) {
   let countdownTimer = null;
   let secondsRemaining = 60;
   let currentCheckoutId = null;
+  let isSendingStk = false;
 
   function renderModalContent() {
     modal.innerHTML = `
@@ -2703,11 +2704,13 @@ function showMpesaCheckoutModal(options) {
 
       if (sendBtn && phoneInput) {
         sendBtn.addEventListener('click', async () => {
+          if (isSendingStk) return;
           const rawPhone = phoneInput.value.trim();
           if (!rawPhone || rawPhone.length < 9) {
             return toast('Please enter a valid customer phone number.', true);
           }
 
+          isSendingStk = true;
           sendBtn.disabled = true;
           sendBtn.innerText = '⏳ Initiating STK Push...';
 
@@ -2737,6 +2740,7 @@ function showMpesaCheckoutModal(options) {
               if (timerEl) timerEl.innerText = `${secondsRemaining}s`;
               if (secondsRemaining <= 0) {
                 cleanupTimers();
+                isSendingStk = false;
                 toast('M-Pesa prompt timed out. Please retry.', true);
                 renderModalContent();
               }
@@ -2748,9 +2752,11 @@ function showMpesaCheckoutModal(options) {
                 const statusRes = await apiFetch(`/api/pos/mpesa/status/${encodeURIComponent(currentCheckoutId)}`);
                 if (statusRes && statusRes.payment_status === 'Completed') {
                   cleanupTimers();
+                  isSendingStk = false;
                   handleMpesaSuccess(statusRes.mpesa_receipt_code || 'MPESA_VERIFIED');
                 } else if (statusRes && (statusRes.payment_status === 'Cancelled' || statusRes.payment_status === 'Failed')) {
                   cleanupTimers();
+                  isSendingStk = false;
                   toast(`Payment ${statusRes.payment_status}: ${statusRes.result_desc || 'Customer declined.'}`, true);
                   renderModalContent();
                 }
@@ -2774,8 +2780,10 @@ function showMpesaCheckoutModal(options) {
                     })
                   });
                   cleanupTimers();
+                  isSendingStk = false;
                   handleMpesaSuccess(simRes.mpesa_receipt_code || 'RSH_SIMULATED');
                 } catch (simErr) {
+                  isSendingStk = false;
                   toast(simErr.message, true);
                 }
               });
@@ -2786,10 +2794,12 @@ function showMpesaCheckoutModal(options) {
             if (cancelBtn) {
               cancelBtn.addEventListener('click', () => {
                 cleanupTimers();
+                isSendingStk = false;
                 renderModalContent();
               });
             }
           } catch (err) {
+            isSendingStk = false;
             toast(err.message, true);
             sendBtn.disabled = false;
             sendBtn.innerHTML = `🚀 Send M-Pesa PIN Prompt (KES ${grandTotal.toLocaleString()})`;
@@ -8649,14 +8659,18 @@ function filterAndRenderAuditRows() {
 
     // 3. Date Filter
     if (selectedDateRange !== 'ALL') {
-      const logDate = new Date(r.timestamp);
-      if (selectedDateRange === 'TODAY') {
-        if (logDate.toDateString() !== now.toDateString()) return false;
-      } else if (selectedDateRange === 'WEEK') {
-        const diffDays = (now - logDate) / (1000 * 60 * 60 * 24);
-        if (diffDays > 7) return false;
-      } else if (selectedDateRange === 'MONTH') {
-        if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
+      let s = String(r.timestamp || '');
+      if (!s.includes('T') && s.includes(' ')) s = s.replace(' ', 'T') + (s.endsWith('Z') ? '' : 'Z');
+      const logDate = new Date(s);
+      if (!isNaN(logDate.getTime())) {
+        if (selectedDateRange === 'TODAY') {
+          if (logDate.toDateString() !== now.toDateString()) return false;
+        } else if (selectedDateRange === 'WEEK') {
+          const diffDays = (now - logDate) / (1000 * 60 * 60 * 24);
+          if (diffDays > 7) return false;
+        } else if (selectedDateRange === 'MONTH') {
+          if (logDate.getMonth() !== now.getMonth() || logDate.getFullYear() !== now.getFullYear()) return false;
+        }
       }
     }
 
@@ -8668,7 +8682,7 @@ function filterAndRenderAuditRows() {
 
     // 5. Search Query
     if (searchQuery) {
-      const searchBlob = `${r.action} ${r.details || ''} ${r.operator_name || ''} ${r.category || ''} ${r.ledger_impact || ''}`.toLowerCase();
+      const searchBlob = `${r.action || ''} ${r.details || ''} ${r.operator_name || ''} ${r.category || ''} ${r.ledger_impact || ''}`.toLowerCase();
       if (!searchBlob.includes(searchQuery)) return false;
     }
 
@@ -8694,7 +8708,19 @@ function filterAndRenderAuditRows() {
 
   tbody.innerHTML = filtered.map((r) => {
     const initials = (r.operator_name || 'U').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-    const formattedDate = new Date(r.timestamp).toISOString().replace('T', ' ').substring(0, 16);
+    let formattedDate = 'Just now';
+    try {
+      let s = String(r.timestamp || '');
+      if (!s.includes('T') && s.includes(' ')) s = s.replace(' ', 'T') + (s.endsWith('Z') ? '' : 'Z');
+      const d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        formattedDate = d.toISOString().replace('T', ' ').substring(0, 16);
+      } else {
+        formattedDate = String(r.timestamp || '').substring(0, 16);
+      }
+    } catch (e) {
+      formattedDate = String(r.timestamp || '').substring(0, 16);
+    }
 
     return `
       <tr data-log-id="${r.log_id}" class="audit-log-row">

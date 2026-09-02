@@ -6,6 +6,7 @@ const { syncToSupabase, updateSupabase } = require('./supabaseSync');
 
 // In-memory token cache: { token, expiresAt, env }
 let cachedToken = null;
+const recentStkRequests = new Map(); // phone -> { checkoutRequestId, merchantRequestId, customerMsg, amount, timestamp, isLive }
 
 /**
  * Retrieve active Daraja M-Pesa Configuration from Database or Environment
@@ -132,6 +133,21 @@ async function sendStkPush({ phone, amount, invoiceId, description, userId, devi
     throw new Error('Please enter a valid Kenyan phone number (e.g. 0712345678 or 0112345678).');
   }
 
+  // Double-charge prevention: throttle duplicate requests within 10 seconds
+  const recent = recentStkRequests.get(formattedPhone);
+  if (recent && (Date.now() - recent.timestamp < 10000) && recent.amount === roundedAmount) {
+    console.log(`[Daraja Throttle] Duplicate STK request ignored for ${formattedPhone} within 10s.`);
+    return {
+      ok: true,
+      checkout_request_id: recent.checkoutRequestId,
+      merchant_request_id: recent.merchantRequestId,
+      customer_message: recent.customerMsg || `STK PIN Prompt already sent to ${formattedPhone}.`,
+      phone: formattedPhone,
+      amount: roundedAmount,
+      is_live: recent.isLive
+    };
+  }
+
   const date = new Date();
   const timestamp = date.getFullYear().toString() +
     String(date.getMonth() + 1).padStart(2, '0') +
@@ -219,6 +235,15 @@ async function sendStkPush({ phone, amount, invoiceId, description, userId, devi
     action: 'MPESA_STK_PUSH_SENT',
     details: `STK Push prompt sent to ${formattedPhone} for KES ${roundedAmount} (Checkout ID: ${checkoutRequestId})`,
     status: 'ALLOWED'
+  });
+
+  recentStkRequests.set(formattedPhone, {
+    checkoutRequestId,
+    merchantRequestId,
+    customerMsg,
+    amount: roundedAmount,
+    timestamp: Date.now(),
+    isLive: realStkSuccess
   });
 
   return {
