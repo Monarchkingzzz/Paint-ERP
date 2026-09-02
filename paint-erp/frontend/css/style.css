@@ -411,15 +411,16 @@ aside.sidebar {
   100% { transform: scale(0.95); opacity: 0.8; }
 }
 
-/* Page Main Container (Generous Spacing, Zero Overlap) */
+/* Page Main Container (Generous Spacing, Zero Overlap, Perfect Proportions) */
 main#view-container {
   flex: 1;
-  padding: 2rem 2.4rem 5rem 2.4rem;
-  max-width: 1680px;
-  margin: 0;
+  padding: 1.5rem 2rem 4.5rem 2rem;
+  max-width: 1600px;
+  margin: 0 auto;
   width: 100%;
   min-height: min-content;
   animation: fadeIn 0.2s ease-out;
+  box-sizing: border-box;
 }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
@@ -433,10 +434,12 @@ main#view-container {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  margin-bottom: 1.8rem;
+  margin-bottom: 1.6rem;
+  flex-wrap: wrap;
+  gap: 0.85rem;
 }
 .view-header-content h2 {
-  font-size: 1.55rem;
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--text-primary);
   letter-spacing: -0.4px;
@@ -446,22 +449,25 @@ main#view-container {
 }
 .view-header-content p {
   color: var(--text-muted);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   margin-top: 0.25rem;
 }
 .view-header-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .card-panel {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
-  padding: 1.8rem;
+  padding: 1.5rem 1.75rem;
   border: 1px solid var(--border-light);
   box-shadow: var(--shadow-sm);
   transition: box-shadow var(--transition-normal);
-  margin-bottom: 1.6rem;
+  margin-bottom: 1.5rem;
+  box-sizing: border-box;
 }
 .card-panel:hover {
   box-shadow: var(--shadow-md);
@@ -470,9 +476,11 @@ main#view-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.4rem;
-  padding-bottom: 0.95rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--border-subtle);
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 .card-panel-header h3 {
   font-size: 1.15rem;
@@ -488,17 +496,23 @@ main#view-container {
   font-weight: 600;
 }
 
-/* Grids for Side-by-Side Views */
+/* Grids for Side-by-Side Views (Adaptive, Non-Cramped) */
 .grid-layout-2col {
   display: grid;
-  grid-template-columns: 1.25fr 1fr;
-  gap: 1.8rem;
+  grid-template-columns: minmax(0, 1.3fr) minmax(360px, 1fr);
+  gap: 1.5rem;
   align-items: start;
 }
 .grid-layout-equal {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.8rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+@media (max-width: 1140px) {
+  .grid-layout-2col, .grid-layout-equal {
+    grid-template-columns: 1fr;
+    gap: 1.35rem;
+  }
 }
 
 /* Form Controls & Inputs */
@@ -600,6 +614,23 @@ select {
   box-sizing: border-box !important;
   padding-left: 3.2rem !important; /* 52px padding guarantees zero overlap with icon */
   padding-right: 2.8rem !important;
+}
+
+/* Explicit protection for compact / stepper / table inputs so numbers are never squeezed */
+.quantity-stepper input,
+.quantity-stepper input.cart-qty-input,
+.price-input-box input,
+.price-input-box input.cart-price-input,
+input.ql-qty,
+input.ql-price,
+input.input-repeat-qty,
+input.input-repeat-phone,
+.table input,
+.table select {
+  padding-left: 0.4rem !important;
+  padding-right: 0.4rem !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
 }
 
 /* Password Eye Toggle Button on right side */
@@ -916,18 +947,23 @@ select {
 
 .payment-methods-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 0.8rem;
-  margin-bottom: 1.4rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+@media (max-width: 480px) {
+  .payment-methods-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .payment-method-card, .payment-option-card {
   border: 1.5px solid var(--border-light);
   border-radius: var(--radius-md);
-  padding: 0.9rem 0.8rem;
+  padding: 0.85rem 0.6rem;
   text-align: center;
   cursor: pointer;
   font-weight: 800;
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   transition: all var(--transition-fast);
   background: white;
   display: flex;
@@ -945,7 +981,7 @@ select {
   box-shadow: 0 0 0 2px var(--brand-gold);
 }
 .payment-icon-lg {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
 }
 
 /* ==========================================================================
@@ -953,9 +989,9 @@ select {
    ========================================================================== */
 .cashflow-accounts-grid, .cashflow-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1.5rem;
-  margin-bottom: 1.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.35rem;
+  margin-bottom: 1.6rem;
 }
 .cashflow-card {
   background: white;
@@ -1267,34 +1303,48 @@ select {
 .modal-overlay, .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(9, 13, 22, 0.82);
+  background: rgba(9, 13, 22, 0.78);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 99999;
-  padding: 1.5rem;
+  padding: 1.25rem;
+  box-sizing: border-box;
   animation: fadeIn 0.15s ease-out;
 }
 .modal-container-card, .modal-card {
   background: white;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   width: 100%;
-  max-width: 680px;
-  max-height: calc(100vh - 3.5rem);
+  max-width: 650px;
+  max-height: calc(100vh - 2.5rem);
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
-  padding: 2rem;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55);
+  padding: 1.75rem 2rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
   position: relative;
   z-index: 100000;
+  box-sizing: border-box;
+}
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 0.75rem;
+  }
+  .modal-container-card, .modal-card {
+    padding: 1.25rem 1.25rem;
+    max-height: calc(100vh - 1.5rem);
+  }
 }
 .modal-header-bar, .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.4rem;
-  padding-bottom: 0.9rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
   border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
 }
 .modal-header-bar h3, .modal-header h3 {
   font-size: 1.25rem;
@@ -1421,11 +1471,12 @@ select {
   background: white;
   border: 1.5px solid var(--border-light);
   border-radius: var(--radius-md);
-  padding: 1rem 1.25rem;
+  padding: 0.95rem 1.15rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 1.2rem;
+  gap: 1rem;
+  flex-wrap: wrap;
   transition: all var(--transition-fast);
 }
 .cart-row-card:hover {
@@ -1435,17 +1486,15 @@ select {
 .cart-item-info {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  flex: 1;
-  min-width: 0;
+  gap: 0.25rem;
+  flex: 1 1 180px;
+  min-width: 140px;
 }
 .cart-item-title {
-  font-size: 0.96rem;
+  font-size: 0.94rem;
   font-weight: 800;
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 .cart-item-badge {
   display: inline-block;
@@ -1461,7 +1510,9 @@ select {
 .cart-item-controls {
   display: flex;
   align-items: center;
-  gap: 0.85rem;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   flex-shrink: 0;
 }
 .quantity-stepper {
@@ -1476,7 +1527,7 @@ select {
 .quantity-stepper button {
   background: #f8fafc;
   border: none;
-  width: 32px;
+  width: 30px;
   height: 100%;
   font-size: 1.05rem;
   font-weight: 800;
@@ -1492,14 +1543,14 @@ select {
   color: var(--text-primary);
 }
 .quantity-stepper input.cart-qty-input {
-  width: 44px;
+  width: 42px;
   height: 100%;
   border: none;
-  text-align: center;
+  text-align: center !important;
   font-size: 0.95rem;
   font-weight: 800;
   color: var(--text-primary);
-  padding: 0;
+  padding: 0 !important;
   border-left: 1px solid var(--border-light);
   border-right: 1px solid var(--border-light);
   border-radius: 0;
@@ -1510,31 +1561,31 @@ select {
   border: 1.5px solid var(--border-light);
   border-radius: var(--radius-sm);
   background: white;
-  padding: 0 0.6rem;
+  padding: 0 0.5rem;
   height: 36px;
 }
 .price-input-box span {
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-weight: 800;
   color: var(--text-muted);
-  margin-right: 0.35rem;
+  margin-right: 0.25rem;
 }
 .price-input-box input.cart-price-input {
-  width: 85px;
+  width: 75px;
   border: none;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 800;
   font-family: var(--font-mono);
   color: var(--text-primary);
-  padding: 0;
+  padding: 0 !important;
   border-radius: 0;
 }
 .cart-row-total {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 900;
   font-family: var(--font-mono);
   color: var(--text-primary);
-  min-width: 100px;
+  min-width: 85px;
   text-align: right;
 }
 .btn-delete-row {
@@ -2110,19 +2161,9 @@ main#view-container {
 /* 5 Metric Cards in 1 Row (Reports Center) */
 .reports-5kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
   margin-bottom: 1.5rem;
-}
-@media (max-width: 1200px) {
-  .reports-5kpi-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-@media (max-width: 768px) {
-  .reports-5kpi-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .kpi-metric-card {
@@ -2136,6 +2177,7 @@ main#view-container {
   justify-content: space-between;
   min-height: 105px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
 }
 .kpi-metric-card:hover {
   transform: translateY(-2px);
@@ -2149,15 +2191,17 @@ main#view-container {
   letter-spacing: 0.6px;
   margin-bottom: 0.4rem;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .kpi-currency-prefix {
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: #64748b;
   margin-bottom: 0.1rem;
 }
 .kpi-metric-val {
-  font-size: 1.4rem;
+  font-size: clamp(1.2rem, 1.6vw, 1.45rem);
   font-weight: 800;
   font-family: var(--font-mono);
   color: #0f172a;
@@ -2175,32 +2219,17 @@ main#view-container {
 /* Stock 4 Valuation Cards Grid */
 .stock-4valuation-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1rem;
   margin-bottom: 1.4rem;
-}
-@media (max-width: 1100px) {
-  .stock-4valuation-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 640px) {
-  .stock-4valuation-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* Sales History 2 KPI Summary Grid */
 .sales-2kpi-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.2rem;
   margin-bottom: 1.4rem;
-}
-@media (max-width: 768px) {
-  .sales-2kpi-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .sales-filter-card {
@@ -2214,19 +2243,9 @@ main#view-container {
 
 .sales-filter-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.2fr 1.5fr 2.2fr;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1rem;
   margin-bottom: 0.9rem;
-}
-@media (max-width: 1024px) {
-  .sales-filter-row {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-@media (max-width: 640px) {
-  .sales-filter-row {
-    grid-template-columns: 1fr;
-  }
 }
 
 .quick-range-row {
@@ -2260,19 +2279,9 @@ main#view-container {
 /* Dashboard 6 KPI Cards Grid */
 .dashboard-6kpi-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1.1rem;
   margin-bottom: 1.4rem;
-}
-@media (max-width: 1100px) {
-  .dashboard-6kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-@media (max-width: 640px) {
-  .dashboard-6kpi-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .dashboard-card {
@@ -3545,5 +3554,118 @@ main#view-container {
     box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);
   }
 }
+
+/* ==========================================================================
+   MASTER RESPONSIVE & ANTI-CRAMPING DATA ARCHITECTURE
+   Guarantees all views, tables, cards, and forms fit with luxury elegance
+   ========================================================================== */
+
+/* Universal Responsive Table Wrapper */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+}
+.table-responsive table {
+  min-width: 650px;
+  width: 100%;
+}
+
+/* Universal Pin & Form Card Grids */
+.pin-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 1.25rem;
+}
+
+/* Large Laptop Screen Optimization (1200px - 1440px) */
+@media (max-width: 1280px) {
+  aside.sidebar {
+    width: 240px;
+    min-width: 240px;
+  }
+  .topbar-header {
+    padding: 0.65rem 1.4rem;
+  }
+  main#view-container {
+    padding: 1.25rem 1.5rem 3.5rem;
+  }
+  .card-panel {
+    padding: 1.35rem 1.5rem;
+  }
+  .grid-layout-2col {
+    grid-template-columns: minmax(0, 1.2fr) minmax(340px, 1fr);
+    gap: 1.25rem;
+  }
+}
+
+/* Medium Tablets & Small Laptops (768px - 1120px) */
+@media (max-width: 1120px) {
+  .grid-layout-2col, 
+  .grid-layout-equal,
+  .reports-2col-layout {
+    grid-template-columns: 1fr !important;
+    gap: 1.35rem !important;
+  }
+  .sidebar-header {
+    padding: 1.1rem 1rem;
+  }
+  .sidebar-nav button {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.84rem;
+  }
+}
+
+/* Tablet & Mobile Screens (<= 768px) */
+@media (max-width: 768px) {
+  .shell {
+    flex-direction: column;
+    height: 100vh;
+  }
+  aside.sidebar {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .sidebar-nav-scroll {
+    display: none; /* Collapsible on mobile */
+  }
+  .topbar-header {
+    padding: 0.65rem 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .topbar-actions {
+    width: 100%;
+    justify-content: space-between;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  main#view-container {
+    padding: 1rem 0.85rem 3rem;
+  }
+  .view-header {
+    margin-bottom: 1.2rem;
+  }
+  .view-header-content h2 {
+    font-size: 1.25rem;
+  }
+  .card-panel {
+    padding: 1.15rem 1rem;
+    border-radius: var(--radius-md);
+  }
+  .pin-cards-grid {
+    grid-template-columns: 1fr;
+  }
+  .modal-container-card {
+    padding: 1.25rem 1rem;
+    max-height: calc(100vh - 1rem);
+  }
+}
+
 
 

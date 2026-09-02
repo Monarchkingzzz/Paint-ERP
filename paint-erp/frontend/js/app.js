@@ -3395,7 +3395,7 @@ async function renderPinLookupView(container) {
           </h3>
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 1.25rem;">
+        <div class="pin-cards-grid">
           ${list.map(pinRecord => renderPinCardHtml(pinRecord, baseTins)).join('')}
         </div>
       `;
