@@ -221,11 +221,9 @@ async function sendStkPush({ phone, amount, invoiceId, description, userId, devi
   // Sync to Supabase
   await syncToSupabase('mpesa_payments', {
     checkout_request_id: checkoutRequestId,
-    merchant_request_id: merchantRequestId,
     phone_number: formattedPhone,
     amount_kes: roundedAmount,
     payment_status: 'Pending',
-    transaction_type: 'STK_PUSH',
     invoice_id: invoiceId || null
   });
 
@@ -456,7 +454,6 @@ async function handleC2BConfirmation(c2bBody) {
         phone_number: phone,
         amount_kes: amount,
         payment_status: 'Completed',
-        transaction_type: 'C2B_PAYBILL',
         bank_reference: billRef
       });
     }

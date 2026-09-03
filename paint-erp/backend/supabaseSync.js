@@ -34,17 +34,65 @@ const PK_MAP = {
   suppliers: 'supplier_id'
 };
 
+const SUPABASE_WHITELIST = {
+  mpesa_payments: [
+    'transaction_id',
+    'mpesa_receipt_code',
+    'checkout_request_id',
+    'phone_number',
+    'amount_kes',
+    'payment_status',
+    'bank_reference',
+    'invoice_id',
+    'timestamp'
+  ],
+  invoices: [
+    'invoice_id',
+    'created_by',
+    'customer_phone',
+    'payment_method',
+    'total_kes',
+    'status',
+    'created_at'
+  ],
+  invoice_items: [
+    'item_id',
+    'invoice_id',
+    'description',
+    'paint_pin',
+    'product_id',
+    'quantity',
+    'unit_price_kes',
+    'line_cost_kes'
+  ]
+};
+
+function sanitizeRecord(table, record) {
+  if (!record || typeof record !== 'object') return record;
+  const allowed = SUPABASE_WHITELIST[table];
+  if (!allowed) return record;
+  const clean = {};
+  for (const key of allowed) {
+    if (key in record && record[key] !== undefined) {
+      clean[key] = record[key];
+    }
+  }
+  return clean;
+}
+
 /**
  * Sync single or multiple rows to a Supabase table.
- * Non-blocking with automatic error recovery and sequence auto-healing.
+ * Non-blocking with automatic error recovery, column sanitization, and sequence auto-healing.
  */
 async function syncToSupabase(table, records, upsertOnConflict = null) {
   const client = getSupabaseClient();
   if (!client) return null;
 
   try {
-    const data = Array.isArray(records) ? records : [records];
-    if (data.length === 0) return null;
+    let rawData = Array.isArray(records) ? records : [records];
+    if (rawData.length === 0) return null;
+
+    const data = SUPABASE_WHITELIST[table] ? rawData.map(r => sanitizeRecord(table, r)) : rawData;
 
     if (upsertOnConflict) {
       const { data: res, error } = await client.from(table).upsert(data, { onConflict: upsertOnConflict }).select();
@@ -54,7 +102,7 @@ async function syncToSupabase(table, records, upsertOnConflict = null) {
 
     let { data: res, error } = await client.from(table).insert(data).select();
     
-    // Auto-heal primary key collision on ephemeral serverless cold-starts
+    // Auto-heal primary key collision on ephemeral serverless cold-starts or sequence desync
     if (error && (error.message.includes('unique constraint') || error.message.includes('duplicate key')) && PK_MAP[table]) {
       const pk = PK_MAP[table];
       try {
@@ -88,7 +136,8 @@ async function updateSupabase(table, matchObj, updates) {
   const client = getSupabaseClient();
   if (!client) return null;
   try {
-    const { error } = await client.from(table).update(updates).match(matchObj);
+    const cleanUpdates = SUPABASE_WHITELIST[table] ? sanitizeRecord(table, updates) : updates;
+    const { error } = await client.from(table).update(cleanUpdates).match(matchObj);
     if (error) console.error(`[Supabase Update Error] ${table}:`, error.message);
   } catch (err) {
     console.error(`[Supabase Update Exception] ${table}:`, err.message);

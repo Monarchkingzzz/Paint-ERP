@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { db } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { logAction } = require('../audit');
-const { syncToSupabase } = require('../supabaseSync');
+const { syncToSupabase, updateSupabase } = require('../supabaseSync');
 
 // Helper to handle invoice/checkout logic
 async function processCheckout(req, res) {
@@ -76,6 +76,15 @@ async function processCheckout(req, res) {
                 .run(item.quantity, item.product_id);
             }
           } catch (pErr) {}
+        } else if (item.base_id) {
+          try {
+            const base = db.prepare('SELECT * FROM stock_base_tins WHERE base_id = ?').get(item.base_id);
+            if (base) {
+              if (!cost) cost = base.unit_cost_kes;
+              db.prepare('UPDATE stock_base_tins SET quantity_in_stock = quantity_in_stock - ? WHERE base_id = ?')
+                .run(item.quantity, item.base_id);
+            }
+          } catch (bErr) {}
         }
 
         // Safely check paint PIN validity
@@ -104,12 +113,23 @@ async function processCheckout(req, res) {
         } catch (cErr) {}
       }
 
-      // If M-Pesa payment, credit M-Pesa Till
+      // If M-Pesa payment, credit M-Pesa Till and link transaction
       if (dbPaymentMethod === 'Mpesa') {
         try {
-          db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(total);
-          if (mpesa_receipt_code) {
-            db.prepare("UPDATE mpesa_payments SET invoice_id = ?, payment_status = 'Completed' WHERE mpesa_receipt_code = ?").run(invoiceId, mpesa_receipt_code);
+          const existingMpesa = mpesa_receipt_code 
+            ? db.prepare("SELECT * FROM mpesa_payments WHERE mpesa_receipt_code = ?").get(mpesa_receipt_code.trim())
+            : null;
+
+          if (existingMpesa) {
+            db.prepare("UPDATE mpesa_payments SET invoice_id = ?, payment_status = 'Completed' WHERE transaction_id = ?").run(invoiceId, existingMpesa.transaction_id);
+          } else if (mpesa_receipt_code) {
+            db.prepare(`
+              INSERT INTO mpesa_payments (mpesa_receipt_code, phone_number, amount_kes, payment_status, invoice_id, transaction_type)
+              VALUES (?, ?, ?, 'Completed', ?, 'STK_PUSH')
+            `).run(mpesa_receipt_code.trim(), customer_phone || 'Customer', total, invoiceId);
+            db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(total);
+          } else {
+            db.prepare("UPDATE cashflow_accounts SET balance_kes = balance_kes + ?, updated_at = CURRENT_TIMESTAMP WHERE account_type = 'M-Pesa Till'").run(total);
           }
         } catch (mErr) {}
       }
@@ -132,9 +152,9 @@ async function processCheckout(req, res) {
 
     const invoiceId = createInvoice();
 
-    // Real-time Supabase sync for invoice & items
+    // Real-time Supabase sync for invoice & items with exact ID reconciliation
     try {
-      await syncToSupabase('invoices', {
+      const invSyncRes = await syncToSupabase('invoices', {
         invoice_id: Number(invoiceId),
         created_by: req.user.user_id,
         customer_phone: customer_phone || null,
@@ -143,8 +163,13 @@ async function processCheckout(req, res) {
         status: initialStatus
       });
 
+      // If Supabase auto-healed or assigned a new ID, ensure items match that cloud invoice ID
+      const targetInvoiceId = (invSyncRes && invSyncRes[0] && invSyncRes[0].invoice_id)
+        ? Number(invSyncRes[0].invoice_id)
+        : Number(invoiceId);
+
       const supabaseItems = rawItems.map(item => ({
-        invoice_id: Number(invoiceId),
+        invoice_id: targetInvoiceId,
         description: item.description || 'Item',
         paint_pin: item.paint_pin || null,
         product_id: item.product_id ? Number(item.product_id) : null,
@@ -153,6 +178,14 @@ async function processCheckout(req, res) {
         line_cost_kes: Number(item.line_cost_kes) || 0
       }));
       await syncToSupabase('invoice_items', supabaseItems);
+
+      // Also ensure Supabase mpesa_payments links to targetInvoiceId
+      if (dbPaymentMethod === 'Mpesa' && mpesa_receipt_code) {
+        await updateSupabase('mpesa_payments', { mpesa_receipt_code: mpesa_receipt_code.trim() }, {
+          invoice_id: targetInvoiceId,
+          payment_status: 'Completed'
+        });
+      }
     } catch (sErr) {
       console.error('Supabase sync warning:', sErr.message);
     }
@@ -278,6 +311,7 @@ router.post('/mpesa/verify-code', requireAuth, async (req, res) => {
       if (invoice_id) {
         db.prepare('UPDATE mpesa_payments SET invoice_id = ? WHERE transaction_id = ?').run(invoice_id, existing.transaction_id);
         db.prepare("UPDATE invoices SET status = 'Paid' WHERE invoice_id = ?").run(invoice_id);
+        await updateSupabase('mpesa_payments', { mpesa_receipt_code: cleanCode }, { invoice_id: Number(invoice_id), payment_status: 'Completed' });
       }
       return res.json({ ok: true, message: 'Receipt code verified successfully.', payment: existing });
     }
@@ -304,7 +338,6 @@ router.post('/mpesa/verify-code', requireAuth, async (req, res) => {
     phone_number: phone,
     amount_kes: amount,
     payment_status: 'Completed',
-    transaction_type: 'MANUAL_CODE',
     invoice_id: invoice_id || null
   });
 

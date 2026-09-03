@@ -396,53 +396,158 @@ function renderApp() {
 function renderLogin() {
   root.innerHTML = `
     <div class="login-screen">
-      <div class="login-card">
-        <div class="login-header">
-          <div class="brand-logo-svg-wrap" style="width:68px; height:68px; margin:0 auto 1.1rem; box-shadow:0 8px 24px rgba(0,0,0,0.5);">
-            ${Icons.logo}
-          </div>
-          <h1 style="font-size:1.6rem; font-weight:800; color:var(--text-primary); letter-spacing:-0.4px;">Paint &amp; Hardware ERP</h1>
-          <p style="font-size:0.86rem; color:var(--text-muted); margin-top:3px;">Kenyan Enterprise POS, Tinting &amp; Real-Time Operations</p>
-        </div>
+      <div class="login-card-wrapper">
+        <div class="login-card">
+          <!-- Left Showcase Panel (Desktop Enterprise Hub) -->
+          <div class="login-showcase">
+            <div>
+              <div class="login-showcase-header">
+                <div class="brand-logo-svg-wrap login-brand-logo">
+                  ${Icons.logo}
+                </div>
+                <div class="login-brand-text">
+                  <h1>Paint &amp; Hardware ERP</h1>
+                  <p class="login-brand-subtitle">Kenyan Enterprise POS &amp; Tinting Engine</p>
+                </div>
+              </div>
 
-        <form id="login-form">
-          <div class="form-floating">
-            <label>Phone Number</label>
-            <div class="input-with-icon">
-              <span class="input-icon">${Icons.phone}</span>
-              <input type="text" id="login-phone" placeholder="254700000000" value="254700000000" required />
+              <div class="login-status-chip">
+                <span class="status-indicator-dot online"></span>
+                <span>Terminal Online &middot; Multi-Branch Ready</span>
+              </div>
+
+              <div class="login-features-list">
+                <div class="login-feature-item">
+                  <span class="feat-icon">🎨</span>
+                  <div>
+                    <strong>Smart Tinting Engine</strong>
+                    <span>Master Fandecks &amp; custom formula lookup</span>
+                  </div>
+                </div>
+                <div class="login-feature-item">
+                  <span class="feat-icon">⚡</span>
+                  <div>
+                    <strong>Instant POS &amp; M-Pesa</strong>
+                    <span>Till &amp; Paybill integrated checkout</span>
+                  </div>
+                </div>
+                <div class="login-feature-item">
+                  <span class="feat-icon">🔄</span>
+                  <div>
+                    <strong>Offline-First Cloud Sync</strong>
+                    <span>Continuous local &amp; cloud database sync</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Demo Access on Showcase Panel (Desktop) -->
+            <div class="login-demo-section">
+              <div class="demo-section-header">
+                <h4>⚡ Quick Demo Access</h4>
+                <span class="demo-hint">One-click test sign-in</span>
+              </div>
+              <div class="demo-btns-grid">
+                <button type="button" class="btn-demo-quick" id="quick-login-owner" title="Log in as Store Owner">
+                  <span class="demo-btn-icon">👑</span>
+                  <span class="demo-btn-content">
+                    <strong>Store Owner</strong>
+                    <span class="role">Admin, Reports &amp; Cashbook</span>
+                  </span>
+                </button>
+                <button type="button" class="btn-demo-quick" id="quick-login-staff" title="Log in as Staff Attendant">
+                  <span class="demo-btn-icon">⚡</span>
+                  <span class="demo-btn-content">
+                    <strong>Staff Attendant</strong>
+                    <span class="role">POS &amp; Paint Mixing Only</span>
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="form-floating" style="margin-top:0.9rem;">
-            <label>Password</label>
-            <div class="input-with-icon">
-              <span class="input-icon">${Icons.lock}</span>
-              <input type="password" id="login-password" placeholder="••••••••" value="owner123" required />
-              <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('login-password', this)" title="Show/Hide Password">👁️</button>
+          <!-- Right Authentication Panel -->
+          <div class="login-form-panel">
+            <div class="login-form-header">
+              <h2>Sign In to Terminal</h2>
+              <p>Enter your authorized phone number &amp; password.</p>
             </div>
-          </div>
 
-          <div style="display:flex; justify-content:flex-end; margin-top:0.3rem;">
-            <a class="forgot-password-link" id="btn-open-forgot-pass">Forgot Password?</a>
-          </div>
+            <form id="login-form" autocomplete="on">
+              <div class="form-floating">
+                <label for="login-phone">Phone Number</label>
+                <div class="input-with-icon">
+                  <span class="input-icon">${Icons.phone}</span>
+                  <input 
+                    type="text" 
+                    id="login-phone" 
+                    name="username"
+                    placeholder="254700000000" 
+                    value="254700000000" 
+                    autocomplete="username"
+                    inputmode="tel"
+                    enterkeyhint="next"
+                    required 
+                  />
+                </div>
+              </div>
 
-          <button type="submit" class="btn btn-primary btn-block btn-lg" style="margin-top:1rem;">
-            Sign In to Terminal
-          </button>
-        </form>
+              <div class="form-floating" style="margin-top:1rem;">
+                <label for="login-password">Password</label>
+                <div class="input-with-icon">
+                  <span class="input-icon">${Icons.lock}</span>
+                  <input 
+                    type="password" 
+                    id="login-password" 
+                    name="password"
+                    placeholder="••••••••" 
+                    value="owner123" 
+                    autocomplete="current-password"
+                    enterkeyhint="done"
+                    required 
+                  />
+                  <button type="button" class="password-toggle-btn" onclick="togglePasswordVisibility('login-password', this)" title="Show/Hide Password" aria-label="Toggle password visibility">👁️</button>
+                </div>
+              </div>
 
-        <div class="demo-accounts-pill" style="margin-top:1.5rem;">
-          <h4>⚡ Quick Demo Access</h4>
-          <div class="demo-btns-grid">
-            <button type="button" class="btn-demo-quick" id="quick-login-owner">
-              <strong>👑 Store Owner</strong>
-              <span class="role">Full Admin, Reports &amp; Cashbook</span>
-            </button>
-            <button type="button" class="btn-demo-quick" id="quick-login-staff">
-              <strong>⚡ Staff Attendant</strong>
-              <span class="role">POS &amp; Paint Mixing Only</span>
-            </button>
+              <div class="login-meta-row">
+                <span class="login-station-badge">📍 Station: Primary Terminal</span>
+                <a class="forgot-password-link" id="btn-open-forgot-pass" role="button" tabindex="0">Forgot Password?</a>
+              </div>
+
+              <button type="submit" class="btn btn-primary btn-block btn-lg btn-login-submit">
+                <span>Sign In to Terminal</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </button>
+            </form>
+
+            <!-- Mobile Quick Demo Access (shown below form on mobile) -->
+            <div class="demo-accounts-pill demo-accounts-mobile">
+              <h4>⚡ Quick Demo Access</h4>
+              <div class="demo-btns-grid">
+                <button type="button" class="btn-demo-quick" id="quick-login-owner-m" title="Log in as Store Owner">
+                  <span class="demo-btn-icon">👑</span>
+                  <span class="demo-btn-content">
+                    <strong>Store Owner</strong>
+                    <span class="role">Admin &amp; Reports</span>
+                  </span>
+                </button>
+                <button type="button" class="btn-demo-quick" id="quick-login-staff-m" title="Log in as Staff Attendant">
+                  <span class="demo-btn-icon">⚡</span>
+                  <span class="demo-btn-content">
+                    <strong>Staff Attendant</strong>
+                    <span class="role">POS Only</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div class="login-form-footer">
+              <div class="login-security-tag">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>256-Bit Encrypted Session &middot; Retail POS v2.4</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -458,15 +563,28 @@ function renderLogin() {
     );
   });
 
-  document.getElementById('btn-open-forgot-pass').addEventListener('click', showForgotPasswordModal);
+  const forgotBtn = document.getElementById('btn-open-forgot-pass');
+  if (forgotBtn) {
+    forgotBtn.addEventListener('click', showForgotPasswordModal);
+    forgotBtn.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        showForgotPasswordModal();
+      }
+    });
+  }
 
-  document.getElementById('quick-login-owner').addEventListener('click', () => {
-    login('254700000000', 'owner123');
-  });
+  const bindDemoLogin = (btnId, phone, pass) => {
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.addEventListener('click', () => login(phone, pass));
+    }
+  };
 
-  document.getElementById('quick-login-staff').addEventListener('click', () => {
-    login('254711111111', 'staff123');
-  });
+  bindDemoLogin('quick-login-owner', '254700000000', 'owner123');
+  bindDemoLogin('quick-login-staff', '254711111111', 'staff123');
+  bindDemoLogin('quick-login-owner-m', '254700000000', 'owner123');
+  bindDemoLogin('quick-login-staff-m', '254711111111', 'staff123');
 }
 
 function showForgotPasswordModal() {
@@ -2498,13 +2616,24 @@ function showMpesaCheckoutModal(options) {
   const modal = document.getElementById('modal-container');
   if (!modal) return;
 
-  const { customerPhone, grandTotal, items, onComplete } = options;
-  let activeTab = 'stk'; // 'stk' or 'c2b'
+  const { customerPhone, grandTotal, items, onComplete, initialTab } = options;
+  let activeTab = initialTab === 'c2b' ? 'c2b' : 'stk'; // 'stk' or 'c2b'
   let pollingTimer = null;
   let countdownTimer = null;
   let secondsRemaining = 60;
   let currentCheckoutId = null;
   let isSendingStk = false;
+  let mpesaConfig = { shortcode: '174379', till_number: '849201' };
+
+  apiFetch('/api/pos/mpesa/config').then(cfg => {
+    if (cfg) {
+      mpesaConfig = cfg;
+      const sc = document.getElementById('mpesa-display-shortcode');
+      const tl = document.getElementById('mpesa-display-till');
+      if (sc && cfg.shortcode) sc.innerText = cfg.shortcode;
+      if (tl && cfg.till_number) tl.innerText = cfg.till_number;
+    }
+  }).catch(() => {});
 
   function renderModalContent() {
     modal.innerHTML = `
@@ -2622,33 +2751,38 @@ function showMpesaCheckoutModal(options) {
       <div>
         <div style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 0.95rem 1.1rem; margin-bottom: 1.25rem;">
           <div style="font-size: 0.76rem; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 0.5rem; letter-spacing: 0.5px;">
-            🏬 Store Lipa Na M-Pesa Instructions:
+            🏬 Store Lipa Na M-Pesa Payment Details:
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.9rem;">
             <div style="background: white; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-              <span style="color: #64748b; font-size: 0.76rem; font-weight: 700; text-transform: uppercase;">Paybill Number</span><br/>
-              <strong style="color: #0f172a; font-family: var(--font-mono); font-size: 1.1rem; letter-spacing: 0.5px;">174379</strong>
+              <span style="color: #64748b; font-size: 0.76rem; font-weight: 700; text-transform: uppercase;">Buy Goods Till</span><br/>
+              <strong id="mpesa-display-till" style="color: #047857; font-family: var(--font-mono); font-size: 1.15rem; letter-spacing: 0.5px;">${escapeHtml(mpesaConfig.till_number || '849201')}</strong>
             </div>
             <div style="background: white; padding: 0.6rem 0.8rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-              <span style="color: #64748b; font-size: 0.76rem; font-weight: 700; text-transform: uppercase;">Account / Till</span><br/>
-              <strong style="color: #047857; font-family: var(--font-mono); font-size: 1.1rem; letter-spacing: 0.5px;">PAINT-POS</strong>
+              <span style="color: #64748b; font-size: 0.76rem; font-weight: 700; text-transform: uppercase;">Paybill / Account</span><br/>
+              <strong id="mpesa-display-shortcode" style="color: #0f172a; font-family: var(--font-mono); font-size: 1.15rem; letter-spacing: 0.5px;">${escapeHtml(mpesaConfig.shortcode || '174379')}</strong>
             </div>
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom: 1.25rem;">
-          <label style="font-size: 0.84rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin-bottom: 0.45rem; display: block;">
-            M-Pesa Transaction Receipt Code
-          </label>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+            <label style="font-size: 0.84rem; font-weight: 800; color: #0f172a; text-transform: uppercase; margin: 0;">
+              M-Pesa Transaction Receipt Code
+            </label>
+            <button type="button" id="btn-fill-demo-code" style="background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; padding: 3px 8px; font-size: 0.74rem; font-weight: 800; color: #047857; cursor: pointer;">
+              ⚡ Fill Demo Code
+            </button>
+          </div>
           <input 
             type="text" 
             id="mpesa-manual-code-input" 
-            placeholder="e.g. SHB71K9X3A" 
+            placeholder="e.g. RSH71K9X3A" 
             style="width: 100%; box-sizing: border-box; min-height: 52px; font-family: var(--font-mono); font-size: 1.25rem; font-weight: 900; text-transform: uppercase; letter-spacing: 2px; padding: 0.85rem 1.1rem; border: 2px solid #cbd5e1; border-radius: 10px; outline: none; background: #ffffff; color: #0f172a;" 
             autofocus
           />
           <small style="color: #64748b; font-size: 0.78rem; margin-top: 6px; display: block; font-weight: 600;">
-            Type or paste the 10-character code from the customer's Safaricom SMS.
+            Type or paste the 10-character code from the customer's Safaricom SMS or click <em>Fill Demo Code</em> to test.
           </small>
         </div>
 
@@ -2812,6 +2946,28 @@ function showMpesaCheckoutModal(options) {
     } else if (activeTab === 'c2b') {
       const verifyBtn = document.getElementById('btn-verify-manual-code');
       const codeInput = document.getElementById('mpesa-manual-code-input');
+      const fillDemoBtn = document.getElementById('btn-fill-demo-code');
+
+      if (fillDemoBtn && codeInput) {
+        fillDemoBtn.addEventListener('click', () => {
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+          let randomSuffix = '';
+          for (let i = 0; i < 7; i++) {
+            randomSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          codeInput.value = 'RSH' + randomSuffix;
+          codeInput.focus();
+        });
+      }
+
+      if (codeInput && verifyBtn) {
+        codeInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            verifyBtn.click();
+          }
+        });
+      }
 
       if (verifyBtn && codeInput) {
         verifyBtn.addEventListener('click', async () => {
@@ -3715,9 +3871,13 @@ async function renderPosView(container) {
                 <span class="payment-icon-lg">💵</span>
                 <span class="payment-label-text">Cash</span>
               </div>
-              <div class="payment-option-card mpesa" data-method="M-Pesa">
-                <span class="payment-icon-lg">📱</span>
-                <span class="payment-label-text">M-Pesa</span>
+              <div class="payment-option-card mpesa" data-method="Mpesa-STK">
+                <span class="payment-icon-lg">📲</span>
+                <span class="payment-label-text">M-Pesa STK</span>
+              </div>
+              <div class="payment-option-card mpesa" data-method="Mpesa-Till">
+                <span class="payment-icon-lg">🧾</span>
+                <span class="payment-label-text">Till / Paybill</span>
               </div>
               <div class="payment-option-card" data-method="Fundi Credit">
                 <span class="payment-icon-lg">👷</span>
@@ -4170,11 +4330,12 @@ async function renderPosView(container) {
     const grandTotal = state.cart.reduce((sum, it) => sum + ((it.unit_price_kes || 0) * (it.quantity || 1)), 0);
 
     // If M-Pesa is selected, trigger Daraja Direct Checkout Modal
-    if (selectedPaymentMethod === 'M-Pesa') {
+    if (selectedPaymentMethod === 'M-Pesa' || selectedPaymentMethod === 'Mpesa-STK' || selectedPaymentMethod === 'Mpesa-Till') {
       showMpesaCheckoutModal({
         customerPhone: customerPhone,
         grandTotal: grandTotal,
         items: state.cart,
+        initialTab: selectedPaymentMethod === 'Mpesa-Till' ? 'c2b' : 'stk',
         onComplete: (res, receiptCode) => {
           resultBox.innerHTML = `
             <div style="background:#ecfdf5; border:1.5px solid #a7f3d0; border-radius:12px; padding:1.25rem; text-align:center;">
